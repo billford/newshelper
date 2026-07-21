@@ -1,0 +1,12 @@
+{
+  "_comment": "Known satire/parody outlet domains. Not exhaustive -- satire outlets come and go, so this needs periodic review, not a one-time hardcode. Matching is case-insensitive and includes subdomains (e.g. local.theonion.com matches theonion.com).",
+  "domains": [
+    "theonion.com",
+    "babylonbee.com",
+    "clickhole.com",
+    "thedailymash.co.uk",
+    "reductress.com",
+    "waterfordwhispersnews.com",
+    "betootaadvocate.com"
+  ]
+}

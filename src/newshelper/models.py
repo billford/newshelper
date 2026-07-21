@@ -21,6 +21,7 @@ class Story:
     title: str
     candidates: list[HeadlineCandidate]
     topic: str = "general"
+    is_satire: bool = False
 
     @property
     def score(self) -> int:

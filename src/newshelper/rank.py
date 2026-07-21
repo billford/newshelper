@@ -10,6 +10,7 @@ from difflib import SequenceMatcher
 
 from newshelper.config import TITLE_SIMILARITY_THRESHOLD, TOP_STORY_COUNT
 from newshelper.models import HeadlineCandidate, Story
+from newshelper.satire import default_allowlist, is_satire_url
 
 
 def normalize_title(title: str) -> str:
@@ -25,6 +26,7 @@ def similarity(title_a: str, title_b: str) -> float:
 def cluster_candidates(
     candidates: list[HeadlineCandidate],
     threshold: float = TITLE_SIMILARITY_THRESHOLD,
+    satire_domains: frozenset[str] | None = None,
 ) -> list[Story]:
     """Group candidates whose titles are similar enough into single stories.
 
@@ -32,7 +34,13 @@ def cluster_candidates(
     story whose title is similar enough, else starts a new story. Good
     enough for a same-day batch of a few hundred headlines; not meant to
     scale to a general dedup problem.
+
+    Each resulting story is tagged `is_satire=True` if any of its candidate
+    links come from a known satire/parody domain (see satire.py) -- the
+    story is still returned, never dropped.
     """
+    satire_domains = default_allowlist() if satire_domains is None else satire_domains
+
     stories: list[Story] = []
     for candidate in candidates:
         matched = False
@@ -43,14 +51,19 @@ def cluster_candidates(
                 break
         if not matched:
             stories.append(Story(title=candidate.title, candidates=[candidate]))
+
+    for story in stories:
+        story.is_satire = any(is_satire_url(c.link, satire_domains) for c in story.candidates)
+
     return stories
 
 
 def top_stories(
     candidates: list[HeadlineCandidate],
     count: int = TOP_STORY_COUNT,
+    satire_domains: frozenset[str] | None = None,
 ) -> list[Story]:
     """Cluster candidates and return the `count` highest cross-feed-scored stories."""
-    stories = cluster_candidates(candidates)
+    stories = cluster_candidates(candidates, satire_domains=satire_domains)
     stories.sort(key=lambda story: story.score, reverse=True)
     return stories[:count]

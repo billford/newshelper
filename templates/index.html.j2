@@ -18,6 +18,7 @@
   <main>
     <article class="lead-story">
       <p class="category-badge">{{ lead.story.topic | upper }}</p>
+      {% if lead.story.is_satire %}<p class="satire-badge">SATIRE</p>{% endif %}
       <h2 class="headline">{{ lead.story.title }}</h2>
       <p class="sources">{{ lead.story.sources | join(', ') }}</p>
       <p class="summary">{{ lead.summary }}</p>
@@ -49,6 +50,7 @@
         {% for item in rest %}
         <li>
           <span class="condensed-title">{{ item.story.title }}</span>
+          {% if item.story.is_satire %}<span class="satire-badge satire-badge-inline">SATIRE</span>{% endif %}
           <span class="condensed-sources">({{ item.story.sources | join(', ') }})</span>
         </li>
         {% endfor %}

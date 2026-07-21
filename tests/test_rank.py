@@ -45,3 +45,42 @@ def test_top_stories_ranks_by_cross_feed_score_and_respects_count():
 
 def test_top_stories_empty_input_returns_empty_list():
     assert top_stories([]) == []
+
+
+def test_cluster_tags_story_as_satire_when_source_matches_allowlist():
+    satire_domains = frozenset({"theonion.com"})
+    candidates = [
+        HeadlineCandidate(
+            title="Area man declares victory",
+            link="https://www.theonion.com/area-man-declares-victory",
+            source="google-news-top",
+            published="",
+        ),
+    ]
+    stories = cluster_candidates(candidates, satire_domains=satire_domains)
+    assert len(stories) == 1
+    assert stories[0].is_satire is True
+
+
+def test_cluster_does_not_tag_non_satire_story():
+    satire_domains = frozenset({"theonion.com"})
+    candidates = [make_candidate("Senate passes new budget bill", "bbc")]
+    stories = cluster_candidates(candidates, satire_domains=satire_domains)
+    assert stories[0].is_satire is False
+
+
+def test_cluster_tags_story_satire_even_if_only_one_of_several_sources_matches():
+    satire_domains = frozenset({"theonion.com"})
+    candidates = [
+        make_candidate("City council approves new budget", "npr"),
+        HeadlineCandidate(
+            title="City council approves new budget",
+            link="https://www.theonion.com/city-council-approves-new-budget",
+            source="google-news-top",
+            published="",
+        ),
+    ]
+    stories = cluster_candidates(candidates, satire_domains=satire_domains)
+    assert len(stories) == 1
+    assert stories[0].is_satire is True
+    assert stories[0].score == 2
