@@ -71,6 +71,27 @@ body {
   margin: 0.5rem 0 0;
 }
 
+.page-published {
+  font-size: 0.75rem;
+  color: #6b6156;
+  margin: 0.15rem 0 0;
+}
+
+.masthead-nav {
+  margin: 0.6rem 0 0;
+  font-size: 0.85rem;
+}
+
+.masthead-nav a {
+  color: var(--accent);
+  text-decoration: none;
+  border-bottom: 1px solid transparent;
+}
+
+.masthead-nav a:hover {
+  border-bottom-color: var(--accent);
+}
+
 .legend {
   flex: 0 1 300px;
   font-size: 0.78rem;
@@ -382,6 +403,29 @@ main {
   background: #fbf6ea;
   border: 1px solid var(--rule);
   border-radius: 6px;
+}
+
+.about-page {
+  max-width: 720px;
+  margin: 0 auto;
+}
+
+.about-page .headline {
+  font-size: clamp(1.6rem, 4vw + 0.75rem, 2.1rem);
+}
+
+.about-page h3 {
+  font-family: var(--font-serif);
+  font-size: 1.2rem;
+  margin: 2rem 0 0.5rem;
+}
+
+.about-page p {
+  margin: 0 0 1rem;
+}
+
+.about-page a {
+  color: var(--accent);
 }
 
 footer {

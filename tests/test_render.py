@@ -12,7 +12,7 @@ from newshelper.models import (
     HeadlineCandidate,
     Story,
 )
-from newshelper.render import render_html
+from newshelper.render import render_about_html, render_html, write_site
 
 
 def make_enriched(
@@ -140,3 +140,34 @@ def test_render_html_includes_the_source_and_purpose_disclaimer():
     assert 'class="disclaimer"' in html
     assert "third-party outlets we do not control" in html
     assert "entertainment and educational purposes only" in html
+
+
+def test_render_html_links_to_the_about_page():
+    lead = make_enriched("Lead headline")
+    html = render_html([lead], build_date=datetime(2026, 7, 21, tzinfo=timezone.utc))
+    assert 'href="about.html"' in html
+
+
+def test_render_about_html_explains_purpose_and_links_back():
+    html = render_about_html(build_date=datetime(2026, 7, 21, tzinfo=timezone.utc))
+    assert "Why NewsHelper exists" in html
+    assert 'href="index.html"' in html
+    assert "satire" in html.lower()
+    assert "fact-check" in html.lower()
+
+
+def test_render_about_html_includes_a_published_timestamp():
+    html = render_about_html(build_date=datetime(2026, 7, 21, 14, 30, tzinfo=timezone.utc))
+    assert "Last published" in html
+    assert "Tuesday, July 21, 2026" in html
+    assert "2:30 PM UTC" in html
+
+
+def test_write_site_writes_both_index_and_about_pages(tmp_path):
+    lead = make_enriched("Lead headline")
+    out = write_site([lead], output_dir=str(tmp_path / "dist"))
+
+    assert (out / "index.html").exists()
+    assert (out / "about.html").exists()
+    assert "Lead headline" in (out / "index.html").read_text(encoding="utf-8")
+    assert "Why NewsHelper exists" in (out / "about.html").read_text(encoding="utf-8")

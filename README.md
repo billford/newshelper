@@ -13,18 +13,44 @@ design rationale.
 
 ## Pipeline
 
-```
-fetch.py  -> rank.py  -> enrich.py    -> render.py
-(RSS)        (cluster/    (local model    (Jinja2 ->
- satire       top 6)      + book verify    dist/index.html)
- tagging)                 + fact-check
-                          + source cites)
+```mermaid
+flowchart TD
+    subgraph Sources["Free RSS sources"]
+        GN["Google News\n(topic feeds)"]
+        GT["Google Trends"]
+        BBC["BBC News"]
+        NPR["NPR News"]
+    end
+
+    Sources --> Fetch["fetch.py\nparse every feed into\nHeadlineCandidates"]
+
+    Fetch --> Rank["rank.py\ncluster near-duplicate titles\n(difflib similarity)\nscore by cross-feed count\nkeep top 6"]
+
+    SatireList[("data/satire_domains.json\nallowlist")] --> Rank
+    Rank -->|"tags, never drops"| SatireTag["is_satire flag\nper story"]
+
+    Rank --> Enrich["enrich.py\nper top-6 story"]
+
+    Ollama[("Ollama on wanderlust\ne.g. qwen2.5:32b")] <--> Enrich
+    Enrich -->|"book topic"| BooksAPI["books.py\nOpen Library ->\nGoogle Books fallback"]
+    BooksAPI -->|"verified title\nor dropped"| BookLink["Bookshop.org search link\n(no affiliate ID)"]
+    Enrich -->|"headline text"| FactCheck["factcheck.py\nGoogle Fact Check\nClaims Search API"]
+    FactCheck -->|"similarity-gated\n(rank.similarity >= 0.4)"| FactTag["fact_check result\nor none"]
+    Enrich --> SourceCite["build_source_citations\n(the original RSS entries,\nno network call)"]
+
+    Enrich --> Render["render.py\nJinja2 templates\n+ brand assets"]
+    Render --> Dist["dist/\nindex.html + about.html"]
+
+    Dist --> Publish["scripts/publish.sh\ngit worktree -> gh-pages"]
+    Publish --> Pages["GitHub Pages\nbillford.github.io/newshelper"]
+
+    LaunchAgent["launchd\n9am / 6pm daily"] -.->|"scripts/daily_build.sh"| Fetch
 ```
 
 1. **Fetch** — pull candidates from Google News, Google Trends, BBC, NPR RSS feeds.
 2. **Rank** — cluster near-duplicate titles across feeds, score by source count, keep top 6; tag known satire/parody domains (`data/satire_domains.json`) without dropping them. Plain code, not model-based.
 3. **Enrich** — ask a local model (Ollama, running on "wanderlust") for a summary and book/article topic ideas per story, then verify every book suggestion against Open Library (fallback: Google Books) before it's allowed to be published. The reader-facing book link is a plain Bookshop.org search, not an affiliate link. Also cites the original RSS articles the summary was built from ("SOURCE" go-deeper links), and looks up a grounded fact-check via Google's Fact Check Claims Search API (`factcheck.py`) — independent of satire tagging, never asserts its own truth verdict, just surfaces a real published rating with a link.
-4. **Render** — write a static `dist/index.html` (old-newspaper editorial style, brand assets in `static/brand/`, no client-side JS). Every story — lead and "also today" — gets the same summary + go-deeper treatment, laid out as a 2-column grid.
+4. **Render** — write a static `dist/index.html` and `dist/about.html` (old-newspaper editorial style, brand assets in `static/brand/`, no client-side JS). Every story — lead and "also today" — gets the same summary + go-deeper treatment, laid out as a 2-column grid.
 
 ## Scheduling
 
