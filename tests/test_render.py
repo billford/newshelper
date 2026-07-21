@@ -131,3 +131,12 @@ def test_render_html_includes_a_legend_covering_every_current_tag_kind():
     # fails loudly.
     for label in ("TOPIC", "SATIRE", "FACT-CHECKED", "ARTICLE", "BOOK", "SOURCE"):
         assert label in html
+
+
+def test_render_html_includes_the_source_and_purpose_disclaimer():
+    lead = make_enriched("Lead headline")
+    html = render_html([lead], build_date=datetime(2026, 7, 21, tzinfo=timezone.utc))
+
+    assert 'class="disclaimer"' in html
+    assert "third-party outlets we do not control" in html
+    assert "entertainment and educational purposes only" in html
