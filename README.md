@@ -7,21 +7,38 @@ deeper-reading follow-ups — including books, which most aggregators skip.
 
 **Live:** https://billford.github.io/newshelper/
 
-See [ADR-001](docs/adr/ADR-001-newshelper.md) for the full design rationale.
+See [ADR-001](docs/adr/ADR-001-newshelper.md) (v1) and
+[ADR-002](docs/adr/ADR-002-cron-and-misinformation-v2.md) (v2) for the full
+design rationale.
 
 ## Pipeline
 
 ```
-fetch.py  -> rank.py -> enrich.py -> render.py
-(RSS)        (cluster/   (local model  (Jinja2 ->
- satire       top 6)      + book        dist/index.html)
- tagging)                 verification)
+fetch.py  -> rank.py  -> enrich.py    -> render.py
+(RSS)        (cluster/    (local model    (Jinja2 ->
+ satire       top 6)      + book verify    dist/index.html)
+ tagging)                 + fact-check
+                          + source cites)
 ```
 
 1. **Fetch** — pull candidates from Google News, Google Trends, BBC, NPR RSS feeds.
 2. **Rank** — cluster near-duplicate titles across feeds, score by source count, keep top 6; tag known satire/parody domains (`data/satire_domains.json`) without dropping them. Plain code, not model-based.
-3. **Enrich** — ask a local model (Ollama, running on "wanderlust") for a summary and book/article topic ideas per story, then verify every book suggestion against Open Library (fallback: Google Books) before it's allowed to be published. The reader-facing book link is a plain Bookshop.org search, not an affiliate link.
+3. **Enrich** — ask a local model (Ollama, running on "wanderlust") for a summary and book/article topic ideas per story, then verify every book suggestion against Open Library (fallback: Google Books) before it's allowed to be published. The reader-facing book link is a plain Bookshop.org search, not an affiliate link. Also cites the original RSS articles the summary was built from ("SOURCE" go-deeper links), and looks up a grounded fact-check via Google's Fact Check Claims Search API (`factcheck.py`) — independent of satire tagging, never asserts its own truth verdict, just surfaces a real published rating with a link.
 4. **Render** — write a static `dist/index.html` (old-newspaper editorial style, brand assets in `static/brand/`, no client-side JS). Every story — lead and "also today" — gets the same summary + go-deeper treatment, laid out as a 2-column grid.
+
+## Scheduling
+
+Builds twice daily (9 AM / 6 PM) via launchd, not cron — wanderlust runs
+macOS. `scripts/daily_build.sh` runs the build then `scripts/publish.sh`,
+logging to `logs/daily_build.log` (gitignored) and firing a macOS
+notification on failure. The LaunchAgent definition is
+`scripts/com.billford.newshelper.daily.plist`, installed to
+`~/Library/LaunchAgents/` and loaded with `launchctl load`.
+
+**Fact-check lookups need a Google Cloud API key** (Fact Check Tools API
+enabled) set as `NEWSHELPER_FACTCHECK_API_KEY` in wanderlust's local
+environment — not yet provisioned, so this is currently a correctly-behaving
+no-op rather than a broken feature. See ADR-002.
 
 ## Running locally
 
@@ -52,7 +69,10 @@ serve from that branch.
 ## Status
 
 **v1 shipped 2026-07-21** — live end-to-end on real RSS data, real local-model
-enrichment, and a real published page. See ADR-001's Action Items for the
-full list. The main known gap: publishing is still a manual
-`build` + `publish.sh` run, not yet on a cron/systemd timer on wanderlust —
-first candidate for v1.1/v2 scoping.
+enrichment, and a real published page.
+
+**v2 shipped 2026-07-21** — twice-daily launchd automation, grounded
+fact-check tagging (`factcheck.py`, pending an API key to go live), and
+source-citation links on every story. See ADR-002's Action Items for what's
+left: provisioning the Fact Check Tools API key, and confirming the
+launchd schedule holds up over the first several real days.

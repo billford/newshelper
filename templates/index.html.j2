@@ -39,6 +39,7 @@
     <article class="story-block {{ size }}-story">
       <p class="category-badge">{{ item.story.topic | upper }}</p>
       {% if item.story.is_satire %}<p class="satire-badge">SATIRE</p>{% endif %}
+      {% if item.fact_check %}<p class="factcheck-badge">FACT-CHECKED CLAIM NEARBY</p>{% endif %}
       {% if size == 'lead' %}
       <h2 class="headline">{{ item.story.title }}</h2>
       {% else %}
@@ -47,12 +48,23 @@
       <p class="sources">{{ item.story.sources | join(', ') }}</p>
       <p class="summary">{{ item.summary }}</p>
 
-      {% if item.books or item.articles %}
+      {% if item.fact_check %}
+      <div class="factcheck-notice">
+        <p class="factcheck-heading">A related claim was independently fact-checked</p>
+        <p class="factcheck-quote">“{{ item.fact_check.claim_text }}”</p>
+        <p class="factcheck-rating">Rated <strong>{{ item.fact_check.rating }}</strong> by {{ item.fact_check.publisher }} —
+          <a href="{{ item.fact_check.url }}">read the full fact-check</a></p>
+        <p class="factcheck-caveat">This is a claim judged similar to this headline, not necessarily about the exact same story — follow the link and judge for yourself.</p>
+      </div>
+      {% endif %}
+
+      {% if item.books or item.articles or item.sourced_from %}
       <div class="go-deeper">
         <h4>Go deeper</h4>
         <ul class="deeper-list">
           {% for article in item.articles %}{{ deeper_item(article) }}{% endfor %}
           {% for book in item.books %}{{ deeper_item(book) }}{% endfor %}
+          {% for source in item.sourced_from %}{{ deeper_item(source) }}{% endfor %}
         </ul>
       </div>
       {% endif %}

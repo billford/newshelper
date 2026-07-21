@@ -44,6 +44,21 @@ OPEN_LIBRARY_SEARCH_URL = "https://openlibrary.org/search.json"
 GOOGLE_BOOKS_SEARCH_URL = "https://www.googleapis.com/books/v1/volumes"
 BOOKS_API_TIMEOUT_SECONDS = 15
 
+# --- Fact-check verification (misinformation tagging v2) ------------------
+# Requires a Google Cloud API key with the "Fact Check Tools API" enabled --
+# unlike the books APIs above, this one is not keyless. Set
+# NEWSHELPER_FACTCHECK_API_KEY in wanderlust's local environment (never in
+# git). Left blank, fact-check lookups are skipped entirely -- never a
+# build failure.
+FACT_CHECK_API_KEY = os.environ.get("NEWSHELPER_FACTCHECK_API_KEY", "")
+FACT_CHECK_API_URL = "https://factchecktools.googleapis.com/v1alpha1/claims:search"
+FACT_CHECK_TIMEOUT_SECONDS = 15
+# A returned claim only counts as "about this story" if its text is at least
+# this similar to the headline (same difflib measure as rank.py's title
+# clustering) -- fact-check search is keyword-based and can otherwise
+# surface an unrelated claim that merely shares a word or two.
+FACT_CHECK_SIMILARITY_THRESHOLD = 0.4
+
 # --- Output ---------------------------------------------------------------
 DIST_DIR = "dist"
 SITE_TITLE = "NewsHelper"

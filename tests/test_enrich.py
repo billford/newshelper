@@ -3,8 +3,8 @@
 import json
 from unittest.mock import patch
 
-from newshelper.enrich import enrich_story, parse_model_response
-from newshelper.models import BookRecommendation, HeadlineCandidate, Story
+from newshelper.enrich import build_source_citations, enrich_story, parse_model_response
+from newshelper.models import BookRecommendation, FactCheckResult, HeadlineCandidate, Story
 from newshelper.ollama_client import FakeOllamaClient
 
 
@@ -63,3 +63,43 @@ def test_enrich_story_falls_back_to_placeholder_summary_when_missing():
     client = FakeOllamaClient(json.dumps({"book_topics": [], "article_topics": []}))
     result = enrich_story(make_story(), client)
     assert result.summary == "Summary unavailable."
+
+
+def test_enrich_story_cites_the_original_candidates_as_sources():
+    client = FakeOllamaClient(json.dumps({"summary": "x", "book_topics": [], "article_topics": []}))
+    result = enrich_story(make_story(), client)
+    assert len(result.sourced_from) == 1
+    assert result.sourced_from[0].kind == "source"
+    assert result.sourced_from[0].url == "https://bbc.example/1"
+    assert "bbc" in result.sourced_from[0].title
+
+
+def test_build_source_citations_covers_every_candidate():
+    candidates = [
+        HeadlineCandidate(title="A", link="https://a.example/1", source="bbc", published=""),
+        HeadlineCandidate(title="A", link="https://a.example/2", source="npr", published=""),
+    ]
+    citations = build_source_citations(candidates)
+    assert len(citations) == 2
+    assert {c.url for c in citations} == {"https://a.example/1", "https://a.example/2"}
+    assert all(c.kind == "source" for c in citations)
+
+
+def test_enrich_story_attaches_fact_check_result_when_present():
+    client = FakeOllamaClient(json.dumps({"summary": "x", "book_topics": [], "article_topics": []}))
+    fake_result = FactCheckResult(
+        claim_text="Fed raises interest rates",
+        rating="False",
+        publisher="Example Fact Checkers",
+        url="https://factcheck.example/1",
+    )
+    with patch("newshelper.enrich.check_headline", return_value=fake_result):
+        result = enrich_story(make_story(), client)
+    assert result.fact_check is fake_result
+
+
+def test_enrich_story_leaves_fact_check_none_when_no_match():
+    client = FakeOllamaClient(json.dumps({"summary": "x", "book_topics": [], "article_topics": []}))
+    with patch("newshelper.enrich.check_headline", return_value=None):
+        result = enrich_story(make_story(), client)
+    assert result.fact_check is None

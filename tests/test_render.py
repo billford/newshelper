@@ -4,11 +4,23 @@ from datetime import datetime, timezone
 
 import pytest
 
-from newshelper.models import ArticleRecommendation, BookRecommendation, EnrichedStory, HeadlineCandidate, Story
+from newshelper.models import (
+    ArticleRecommendation,
+    BookRecommendation,
+    EnrichedStory,
+    FactCheckResult,
+    HeadlineCandidate,
+    Story,
+)
 from newshelper.render import render_html
 
 
-def make_enriched(title: str, with_extras: bool = False, is_satire: bool = False) -> EnrichedStory:
+def make_enriched(
+    title: str,
+    with_extras: bool = False,
+    is_satire: bool = False,
+    fact_check: FactCheckResult | None = None,
+) -> EnrichedStory:
     candidate = HeadlineCandidate(title=title, link="https://bbc.example/x", source="bbc", published="")
     story = Story(title=title, candidates=[candidate], is_satire=is_satire)
     books = (
@@ -17,7 +29,19 @@ def make_enriched(title: str, with_extras: bool = False, is_satire: bool = False
         else []
     )
     articles = [ArticleRecommendation(title="Related piece", url="https://bbc.example/y")] if with_extras else []
-    return EnrichedStory(story=story, summary="A summary.", books=books, articles=articles)
+    sourced_from = (
+        [ArticleRecommendation(title="bbc: " + title, url="https://bbc.example/x", kind="source")]
+        if with_extras
+        else []
+    )
+    return EnrichedStory(
+        story=story,
+        summary="A summary.",
+        books=books,
+        articles=articles,
+        sourced_from=sourced_from,
+        fact_check=fact_check,
+    )
 
 
 def test_render_html_includes_lead_story_and_rest_titles():
@@ -68,4 +92,29 @@ def test_render_html_tags_each_go_deeper_link_with_its_kind_and_book_disclaimer(
 
     assert 'class="kind-tag kind-article"' in html
     assert 'class="kind-tag kind-book"' in html
+    assert 'class="kind-tag kind-source"' in html
     assert "make no money from book sales" in html
+
+
+def test_render_html_shows_fact_check_notice_with_caveat_when_present():
+    fact_check = FactCheckResult(
+        claim_text="The moon landing was faked",
+        rating="False",
+        publisher="Example Fact Checkers",
+        url="https://factcheck.example/1",
+    )
+    lead = make_enriched("A disputed headline", fact_check=fact_check)
+    html = render_html([lead], build_date=datetime(2026, 7, 21, tzinfo=timezone.utc))
+
+    assert "FACT-CHECKED CLAIM NEARBY" in html
+    assert "The moon landing was faked" in html
+    assert "Example Fact Checkers" in html
+    assert 'href="https://factcheck.example/1"' in html
+    assert "not necessarily about the exact same story" in html
+
+
+def test_render_html_omits_fact_check_notice_when_absent():
+    lead = make_enriched("An undisputed headline", fact_check=None)
+    html = render_html([lead], build_date=datetime(2026, 7, 21, tzinfo=timezone.utc))
+    assert "FACT-CHECKED" not in html
+    assert "factcheck-notice" not in html

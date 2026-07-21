@@ -90,6 +90,52 @@ main {
   margin: 0 0.5rem 0.75rem 0;
 }
 
+.factcheck-badge {
+  display: inline-block;
+  font-size: 0.7rem;
+  letter-spacing: 0.1em;
+  color: #fff;
+  background: #b5540f;
+  padding: 0.2rem 0.6rem;
+  border-radius: 2px;
+  margin: 0 0.5rem 0.75rem 0;
+}
+
+.factcheck-notice {
+  background: #fdf2e7;
+  border: 1px solid #e3b57f;
+  border-left: 4px solid #b5540f;
+  border-radius: 4px;
+  padding: 0.85rem 1rem;
+  margin: 0 0 1.5rem;
+}
+
+.factcheck-heading {
+  font-weight: 600;
+  margin: 0 0 0.4rem;
+  font-size: 0.9rem;
+}
+
+.factcheck-quote {
+  font-style: italic;
+  margin: 0 0 0.4rem;
+}
+
+.factcheck-rating {
+  font-size: 0.9rem;
+  margin: 0 0 0.4rem;
+}
+
+.factcheck-rating a {
+  color: var(--accent);
+}
+
+.factcheck-caveat {
+  font-size: 0.72rem;
+  color: #6b6156;
+  margin: 0;
+}
+
 .headline {
   font-family: var(--font-serif);
   line-height: 1.2;
@@ -167,6 +213,10 @@ main {
   border-left-color: #5b4b8a;
 }
 
+.deeper-item.deeper-source {
+  border-left-color: #6b6156;
+}
+
 .kind-tag {
   flex: 0 0 auto;
   font-size: 0.62rem;
@@ -188,6 +238,10 @@ main {
 
 .kind-tag.kind-paper {
   background: #5b4b8a;
+}
+
+.kind-tag.kind-source {
+  background: #6b6156;
 }
 
 .deeper-body {

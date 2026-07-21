@@ -67,6 +67,22 @@ class ArticleRecommendation:
 
 
 @dataclass
+class FactCheckResult:
+    """A published fact-check of a claim judged similar enough to this story.
+
+    Grounded misinformation signal (v2): unlike satire tagging, this never
+    asserts a verdict of our own -- it surfaces an existing, real,
+    independently-published fact-check with its own rating and link, and
+    lets the reader judge fit and follow through themselves.
+    """
+
+    claim_text: str
+    rating: str
+    publisher: str
+    url: str
+
+
+@dataclass
 class EnrichedStory:
     """A story plus AI-generated summary and verified deeper-reading list."""
 
@@ -74,3 +90,5 @@ class EnrichedStory:
     summary: str
     books: list[BookRecommendation] = field(default_factory=list)
     articles: list[ArticleRecommendation] = field(default_factory=list)
+    sourced_from: list[ArticleRecommendation] = field(default_factory=list)
+    fact_check: FactCheckResult | None = None
