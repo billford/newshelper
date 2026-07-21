@@ -1,6 +1,6 @@
 # ADR-001: NewsHelper — Beyond-the-Headline Daily News Digest
 
-Status: Proposed
+Status: Accepted — v1 shipped 2026-07-21
 Date: 2026-07-21
 Deciders: Billfordx
 
@@ -167,13 +167,21 @@ Jekyll-only features) is avoided.
 
 ## Action Items
 
-- [ ] Confirm final v1 feed list (Google News topic feeds + Google Trends + BBC + NPR)
-- [ ] Confirm which books API to try first: Open Library, Google Books fallback
-- [ ] Pick a specific local model based on wanderlust's actual RAM/VRAM, install via Ollama/LM Studio
-- [ ] Pick a serif display font for headlines and finalize the newspaper-style CSS
+- [x] Confirm final v1 feed list (Google News topic feeds + Google Trends + BBC + NPR) — all 7 feeds live and verified with real data
+- [x] Confirm which books API to try first: Open Library, Google Books fallback — implemented and verified end to end
+- [x] Pick a specific local model based on wanderlust's actual RAM/VRAM, install via Ollama/LM Studio — `qwen2.5:32b` chosen after a head-to-head against `llama3.2:3b` (which hallucinated); `NEWSHELPER_OLLAMA_MODEL=qwen2.5:32b` overrides the documented `llama3.1:8b` config default on this machine
+- [x] Pick a serif display font for headlines and finalize the newspaper-style CSS — brand assets delivered (Lora wordmark, favicon set, exact ink/accent/paper palette), wired in
 - [x] Scaffold repo: fetch.py, rank.py, enrich.py, render.py, templates, tests/
-- [ ] Set up cron/systemd timer on wanderlust and a git deploy key for pushing to GitHub Pages
-- [ ] Build and test story cross-feed matching/ranking logic
-- [ ] First end-to-end daily build, manually triggered on wanderlust
-- [ ] Confirm daily cron is reliable (e.g. alerting if a day's build fails or wanderlust is offline)
+- [ ] Set up cron/systemd timer on wanderlust and a git deploy key for pushing to GitHub Pages — **still manual**; each build/publish so far has been run by hand, not on a schedule
+- [x] Build and test story cross-feed matching/ranking logic
+- [x] First end-to-end daily build, manually triggered on wanderlust — live at https://billford.github.io/newshelper/
+- [ ] Confirm daily cron is reliable (e.g. alerting if a day's build fails or wanderlust is offline) — blocked on the item above
 - [ ] Later: migrate hosting to Cloudflare Pages
+
+**v1 also shipped two features beyond the original scope:** satire tagging
+(domain-allowlist based, see the "Satire tagging" section added to this doc's
+implementation) and a fully reworked front page (2-column "Also Today" grid
+with full research on every story, kind-tagged go-deeper links, Bookshop.org
+book links with a no-money-made disclaimer, brand assets). Automating the
+daily cron job is the main gap before this is a true "hands-off daily"
+digest — first candidate for v1.1 or v2 scoping.
