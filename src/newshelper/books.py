@@ -4,9 +4,14 @@ Per ADR-001, the local model only ever suggests a *topic*, never a title
 directly used in the output — every published book recommendation must
 round-trip through one of these real APIs first, so hallucinated titles
 never reach the site.
+
+The reader-facing link is a plain Bookshop.org search for the verified
+title/author, not the verifying API's own page -- no affiliate ID, no
+tracking parameter, since the site earns nothing from book sales.
 """
 
 import logging
+from urllib.parse import quote_plus
 
 import requests
 
@@ -18,6 +23,14 @@ from newshelper.config import (
 from newshelper.models import BookRecommendation
 
 logger = logging.getLogger(__name__)
+
+BOOKSHOP_SEARCH_URL = "https://bookshop.org/search"
+
+
+def bookshop_search_link(title: str, author: str) -> str:
+    """Build a plain, non-affiliate Bookshop.org search link for a verified book."""
+    query = f"{title} {author}".strip()
+    return f"{BOOKSHOP_SEARCH_URL}?keywords={quote_plus(query)}"
 
 
 def search_open_library(topic: str) -> BookRecommendation | None:
@@ -47,7 +60,7 @@ def search_open_library(topic: str) -> BookRecommendation | None:
     return BookRecommendation(
         title=title,
         author=authors[0],
-        url=f"https://openlibrary.org{key}",
+        url=bookshop_search_link(title, authors[0]),
         verified_via="Open Library",
     )
 
@@ -79,7 +92,7 @@ def search_google_books(topic: str) -> BookRecommendation | None:
     return BookRecommendation(
         title=title,
         author=authors[0],
-        url=info_link,
+        url=bookshop_search_link(title, authors[0]),
         verified_via="Google Books",
     )
 

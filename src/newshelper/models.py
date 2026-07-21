@@ -41,12 +41,20 @@ class Story:
 
 @dataclass
 class BookRecommendation:
-    """A book suggestion, only ever populated after API verification."""
+    """A book suggestion, only ever populated after API verification.
+
+    `url` points to a Bookshop.org search for the verified title/author, not
+    the verifying API itself -- plain search link, no affiliate ID, since we
+    make no money from book sales. `kind` is a rendering discriminator so the
+    "go deeper" template can tag every link with what type it is; a future
+    "paper" recommendation kind would follow the same pattern.
+    """
 
     title: str
     author: str
     url: str
     verified_via: str  # "Open Library" or "Google Books"
+    kind: str = "book"
 
 
 @dataclass
@@ -55,6 +63,7 @@ class ArticleRecommendation:
 
     title: str
     url: str
+    kind: str = "article"
 
 
 @dataclass

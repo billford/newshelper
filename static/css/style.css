@@ -1,8 +1,9 @@
 :root {
-  --paper: #f7f2e9;
-  --ink: #2b2622;
-  --accent: #8a5a2b;
+  --paper: #fbf9f4;
+  --ink: #262420;
+  --accent: #8a6a4a;
   --rule: #d8cdb8;
+  --font-serif: "Lora", "Source Serif 4", Georgia, serif;
 }
 
 * {
@@ -23,15 +24,26 @@ body {
   border-bottom: 3px double var(--accent);
 }
 
+.wordmark {
+  max-width: 420px;
+  margin: 0 auto;
+}
+
+.wordmark svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
 .masthead h1 {
-  font-family: "Source Serif 4", Georgia, serif;
+  font-family: var(--font-serif);
   font-weight: 700;
   font-size: 3rem;
   letter-spacing: 0.02em;
   margin: 0;
 }
 
-.tagline {
+.masthead .tagline {
   font-style: italic;
   color: var(--accent);
   margin: 0.25rem 0;
@@ -46,9 +58,14 @@ body {
 }
 
 main {
-  max-width: 720px;
+  max-width: 1040px;
   margin: 0 auto;
   padding: 2rem 1.25rem 4rem;
+}
+
+.lead-story {
+  max-width: 720px;
+  margin: 0 auto;
 }
 
 .category-badge {
@@ -73,18 +90,18 @@ main {
   margin: 0 0.5rem 0.75rem 0;
 }
 
-.satire-badge-inline {
-  margin: 0 0.5rem;
-  padding: 0.05rem 0.4rem;
-  font-size: 0.6rem;
-  vertical-align: middle;
-}
-
 .headline {
-  font-family: "Source Serif 4", Georgia, serif;
-  font-size: 2.1rem;
+  font-family: var(--font-serif);
   line-height: 1.2;
   margin: 0 0 0.5rem;
+}
+
+.lead-story .headline {
+  font-size: 2.1rem;
+}
+
+.secondary-story .headline {
+  font-size: 1.4rem;
 }
 
 .sources {
@@ -98,37 +115,108 @@ main {
   margin-bottom: 1.5rem;
 }
 
+.secondary-story .summary {
+  font-size: 0.95rem;
+}
+
 .go-deeper {
   border-top: 1px solid var(--rule);
   padding-top: 1rem;
 }
 
-.go-deeper h3 {
-  font-family: "Source Serif 4", Georgia, serif;
+.go-deeper h4 {
+  font-family: var(--font-serif);
   font-size: 1.1rem;
   margin: 0 0 0.5rem;
 }
 
-.go-deeper ul {
+.deeper-list {
   list-style: none;
   padding: 0;
   margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
 }
 
-.go-deeper li {
-  margin-bottom: 0.5rem;
-  font-size: 0.95rem;
+.deeper-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.7rem;
+  padding: 0.65rem 0.85rem;
+  background: #fdf9f0;
+  border: 1px solid var(--rule);
+  border-left: 4px solid var(--accent);
+  border-radius: 4px;
+  transition: border-color 0.15s ease, background 0.15s ease;
 }
 
-.go-deeper a {
-  color: var(--accent);
+.deeper-item:hover {
+  background: #fff4de;
 }
 
-.verified-credit {
-  display: block;
-  font-size: 0.7rem;
+.deeper-item.deeper-article {
+  border-left-color: #3f6b64;
+}
+
+.deeper-item.deeper-book {
+  border-left-color: #a6741b;
+}
+
+.deeper-item.deeper-paper {
+  border-left-color: #5b4b8a;
+}
+
+.kind-tag {
+  flex: 0 0 auto;
+  font-size: 0.62rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  color: #fff;
+  padding: 0.2rem 0.5rem;
+  border-radius: 2px;
+  margin-top: 0.1rem;
+}
+
+.kind-tag.kind-article {
+  background: #3f6b64;
+}
+
+.kind-tag.kind-book {
+  background: #a6741b;
+}
+
+.kind-tag.kind-paper {
+  background: #5b4b8a;
+}
+
+.deeper-body {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.deeper-title {
+  font-weight: 600;
+  color: var(--ink);
+  text-decoration: none;
+  border-bottom: 1px solid transparent;
+}
+
+.deeper-title:hover {
+  border-bottom-color: var(--accent);
+}
+
+.deeper-meta {
+  font-size: 0.8rem;
   color: #6b6156;
+  margin: 0.25rem 0 0;
+}
+
+.book-disclaimer {
+  font-size: 0.7rem;
   font-style: italic;
+  color: #6b6156;
+  margin: 0.15rem 0 0;
 }
 
 .also-today {
@@ -137,30 +225,33 @@ main {
   padding-top: 1.5rem;
 }
 
-.also-today h3 {
-  font-family: "Source Serif 4", Georgia, serif;
+.also-today .section-heading {
+  font-family: var(--font-serif);
   font-size: 1.1rem;
-  margin: 0 0 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--accent);
+  margin: 0 0 1.25rem;
+  text-align: center;
 }
 
-.condensed-list {
-  list-style: none;
-  padding: 0;
-  margin: 0;
+.also-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1.5rem 2rem;
 }
 
-.condensed-list li {
-  padding: 0.5rem 0;
-  border-bottom: 1px solid var(--rule);
+@media (max-width: 640px) {
+  .also-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
-.condensed-title {
-  font-weight: 500;
-}
-
-.condensed-sources {
-  font-size: 0.8rem;
-  color: #6b6156;
+.secondary-story {
+  padding: 1.25rem 1.4rem;
+  background: #fbf6ea;
+  border: 1px solid var(--rule);
+  border-radius: 6px;
 }
 
 footer {

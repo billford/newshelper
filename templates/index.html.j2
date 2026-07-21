@@ -4,57 +4,72 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{{ site_title }} — {{ build_date.strftime('%B %d, %Y') }}</title>
+  <link rel="icon" href="static/brand/favicon.svg" type="image/svg+xml">
+  <link rel="alternate icon" href="static/brand/favicon.ico">
+  <link rel="apple-touch-icon" href="static/brand/apple-touch-icon-180.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400;8..60,600;8..60,700&family=Inter:wght@400;500&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,600;0,700;1,400&family=Inter:wght@400;500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="static/css/style.css">
 </head>
 <body>
   <header class="masthead">
+    {% if wordmark_svg %}
+    <div class="wordmark">{{ wordmark_svg | safe }}</div>
+    {% else %}
     <h1>{{ site_title }}</h1>
     <p class="tagline">{{ site_tagline }}</p>
+    {% endif %}
     <p class="dateline">{{ build_date.strftime('%A, %B %d, %Y') }}</p>
   </header>
 
-  <main>
-    <article class="lead-story">
-      <p class="category-badge">{{ lead.story.topic | upper }}</p>
-      {% if lead.story.is_satire %}<p class="satire-badge">SATIRE</p>{% endif %}
-      <h2 class="headline">{{ lead.story.title }}</h2>
-      <p class="sources">{{ lead.story.sources | join(', ') }}</p>
-      <p class="summary">{{ lead.summary }}</p>
+  {% macro deeper_item(rec) %}
+    <li class="deeper-item deeper-{{ rec.kind }}">
+      <span class="kind-tag kind-{{ rec.kind }}">{{ rec.kind | upper }}</span>
+      <div class="deeper-body">
+        <a class="deeper-title" href="{{ rec.url }}">{{ rec.title }}</a>
+        {% if rec.kind == 'book' %}
+        <p class="deeper-meta">{{ rec.author }} — verified via {{ rec.verified_via }}</p>
+        <p class="book-disclaimer">Bookshop.org search link — we make no money from book sales.</p>
+        {% endif %}
+      </div>
+    </li>
+  {% endmacro %}
 
-      {% if lead.books or lead.articles %}
+  {% macro story_block(item, size) %}
+    <article class="story-block {{ size }}-story">
+      <p class="category-badge">{{ item.story.topic | upper }}</p>
+      {% if item.story.is_satire %}<p class="satire-badge">SATIRE</p>{% endif %}
+      {% if size == 'lead' %}
+      <h2 class="headline">{{ item.story.title }}</h2>
+      {% else %}
+      <h3 class="headline">{{ item.story.title }}</h3>
+      {% endif %}
+      <p class="sources">{{ item.story.sources | join(', ') }}</p>
+      <p class="summary">{{ item.summary }}</p>
+
+      {% if item.books or item.articles %}
       <div class="go-deeper">
-        <h3>Go deeper</h3>
-        <ul>
-          {% for article in lead.articles %}
-          <li class="article-rec">
-            <a href="{{ article.url }}">{{ article.title }}</a>
-          </li>
-          {% endfor %}
-          {% for book in lead.books %}
-          <li class="book-rec">
-            <a href="{{ book.url }}">{{ book.title }}</a> — {{ book.author }}
-            <span class="verified-credit">verified via {{ book.verified_via }}</span>
-          </li>
-          {% endfor %}
+        <h4>Go deeper</h4>
+        <ul class="deeper-list">
+          {% for article in item.articles %}{{ deeper_item(article) }}{% endfor %}
+          {% for book in item.books %}{{ deeper_item(book) }}{% endfor %}
         </ul>
       </div>
       {% endif %}
     </article>
+  {% endmacro %}
+
+  <main>
+    {{ story_block(lead, 'lead') }}
 
     {% if rest %}
     <section class="also-today">
-      <h3>Also today</h3>
-      <ul class="condensed-list">
+      <h3 class="section-heading">Also today</h3>
+      <div class="also-grid">
         {% for item in rest %}
-        <li>
-          <span class="condensed-title">{{ item.story.title }}</span>
-          {% if item.story.is_satire %}<span class="satire-badge satire-badge-inline">SATIRE</span>{% endif %}
-          <span class="condensed-sources">({{ item.story.sources | join(', ') }})</span>
-        </li>
+        {{ story_block(item, 'secondary') }}
         {% endfor %}
-      </ul>
+      </div>
     </section>
     {% endif %}
   </main>

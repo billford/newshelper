@@ -4,7 +4,7 @@ from unittest.mock import Mock, patch
 
 import requests
 
-from newshelper.books import search_google_books, search_open_library, verify_book_topic
+from newshelper.books import bookshop_search_link, search_google_books, search_open_library, verify_book_topic
 
 
 def _mock_response(json_data):
@@ -12,6 +12,13 @@ def _mock_response(json_data):
     mock.json.return_value = json_data
     mock.raise_for_status.return_value = None
     return mock
+
+
+def test_bookshop_search_link_is_a_plain_non_affiliate_search_url():
+    link = bookshop_search_link("The Alchemists", "Neil Irwin")
+    assert link == "https://bookshop.org/search?keywords=The+Alchemists+Neil+Irwin"
+    assert "affiliate" not in link
+    assert "ref=" not in link
 
 
 def test_search_open_library_returns_recommendation_on_match():
@@ -23,7 +30,8 @@ def test_search_open_library_returns_recommendation_on_match():
     assert result is not None
     assert result.title == "The Alchemists"
     assert result.verified_via == "Open Library"
-    assert result.url == "https://openlibrary.org/works/OL123W"
+    assert result.kind == "book"
+    assert result.url == "https://bookshop.org/search?keywords=The+Alchemists+Neil+Irwin"
 
 
 def test_search_open_library_returns_none_on_no_docs():
@@ -52,6 +60,7 @@ def test_search_google_books_returns_recommendation_on_match():
         result = search_google_books("development economics")
     assert result is not None
     assert result.verified_via == "Google Books"
+    assert result.url == "https://bookshop.org/search?keywords=Poor+Economics+Banerjee"
 
 
 def test_verify_book_topic_falls_back_to_google_books_when_open_library_misses():

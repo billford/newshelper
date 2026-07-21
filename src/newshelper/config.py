@@ -47,4 +47,4 @@ BOOKS_API_TIMEOUT_SECONDS = 15
 # --- Output ---------------------------------------------------------------
 DIST_DIR = "dist"
 SITE_TITLE = "NewsHelper"
-SITE_TAGLINE = "The story behind the headline."
+SITE_TAGLINE = "& the rest of the story"
