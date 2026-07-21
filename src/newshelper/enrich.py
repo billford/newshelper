@@ -1,0 +1,69 @@
+"""Stage 3: ask the local model for a summary + follow-up topics, then verify."""
+
+import json
+import logging
+
+from newshelper.books import verify_book_topic
+from newshelper.models import ArticleRecommendation, EnrichedStory, Story
+from newshelper.ollama_client import OllamaClientProtocol
+
+logger = logging.getLogger(__name__)
+
+PROMPT_TEMPLATE = """You are helping build a daily news digest that explains \
+the story behind a headline, not just the headline itself.
+
+Headline: {title}
+Reported by: {sources}
+
+Respond with ONLY a JSON object with these keys:
+- "summary": a 2-4 sentence plain-language explanation of the broader story \
+(context a reader would need beyond the headline itself).
+- "book_topics": a list of 1-2 short topic phrases (not titles) describing a \
+nonfiction book subject that would help a reader understand this story in depth.
+- "article_topics": a list of 1-2 short topic phrases for a follow-up article.
+"""
+
+
+def build_prompt(story: Story) -> str:
+    """Render the enrichment prompt for a single story."""
+    return PROMPT_TEMPLATE.format(title=story.title, sources=", ".join(story.sources))
+
+
+def parse_model_response(raw_response: str) -> dict:
+    """Parse the model's JSON reply, tolerating minor formatting noise."""
+    text = raw_response.strip()
+    start = text.find("{")
+    end = text.rfind("}")
+    if start == -1 or end == -1:
+        return {}
+    try:
+        return json.loads(text[start : end + 1])
+    except json.JSONDecodeError:
+        logger.warning("could not parse model response as JSON: %r", raw_response)
+        return {}
+
+
+def enrich_story(story: Story, client: OllamaClientProtocol) -> EnrichedStory:
+    """Summarize a story and attach verified book/article recommendations."""
+    raw_response = client.generate(build_prompt(story))
+    parsed = parse_model_response(raw_response)
+
+    summary = parsed.get("summary", "").strip() or "Summary unavailable."
+
+    books = []
+    for topic in parsed.get("book_topics", []):
+        recommendation = verify_book_topic(topic)
+        if recommendation is not None:
+            books.append(recommendation)
+
+    articles = [
+        ArticleRecommendation(title=topic, url=story.links[0] if story.links else "")
+        for topic in parsed.get("article_topics", [])
+    ]
+
+    return EnrichedStory(story=story, summary=summary, books=books, articles=articles)
+
+
+def enrich_all(stories: list[Story], client: OllamaClientProtocol) -> list[EnrichedStory]:
+    """Enrich every story in the day's top-N list."""
+    return [enrich_story(story, client) for story in stories]

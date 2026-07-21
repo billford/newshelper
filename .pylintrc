@@ -1,0 +1,8 @@
+[MASTER]
+ignore=dist,.venv
+
+[MESSAGES CONTROL]
+disable=too-few-public-methods
+
+[FORMAT]
+max-line-length=100

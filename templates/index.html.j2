@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ site_title }} — {{ build_date.strftime('%B %d, %Y') }}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400;8..60,600;8..60,700&family=Inter:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="static/css/style.css">
+</head>
+<body>
+  <header class="masthead">
+    <h1>{{ site_title }}</h1>
+    <p class="tagline">{{ site_tagline }}</p>
+    <p class="dateline">{{ build_date.strftime('%A, %B %d, %Y') }}</p>
+  </header>
+
+  <main>
+    <article class="lead-story">
+      <p class="category-badge">{{ lead.story.topic | upper }}</p>
+      <h2 class="headline">{{ lead.story.title }}</h2>
+      <p class="sources">{{ lead.story.sources | join(', ') }}</p>
+      <p class="summary">{{ lead.summary }}</p>
+
+      {% if lead.books or lead.articles %}
+      <div class="go-deeper">
+        <h3>Go deeper</h3>
+        <ul>
+          {% for article in lead.articles %}
+          <li class="article-rec">
+            <a href="{{ article.url }}">{{ article.title }}</a>
+          </li>
+          {% endfor %}
+          {% for book in lead.books %}
+          <li class="book-rec">
+            <a href="{{ book.url }}">{{ book.title }}</a> — {{ book.author }}
+            <span class="verified-credit">verified via {{ book.verified_via }}</span>
+          </li>
+          {% endfor %}
+        </ul>
+      </div>
+      {% endif %}
+    </article>
+
+    {% if rest %}
+    <section class="also-today">
+      <h3>Also today</h3>
+      <ul class="condensed-list">
+        {% for item in rest %}
+        <li>
+          <span class="condensed-title">{{ item.story.title }}</span>
+          <span class="condensed-sources">({{ item.story.sources | join(', ') }})</span>
+        </li>
+        {% endfor %}
+      </ul>
+    </section>
+    {% endif %}
+  </main>
+
+  <footer>
+    <p>Built daily from RSS feeds, summarized locally, book links verified via Open Library / Google Books.</p>
+  </footer>
+</body>
+</html>
