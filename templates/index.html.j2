@@ -12,14 +12,37 @@
   <link rel="stylesheet" href="static/css/style.css">
 </head>
 <body>
+  {#
+    STANDING RULE: every tag/badge kind rendered on the page (category,
+    satire, fact-check, and each go-deeper "kind") must have a matching
+    entry in this legend. Add a row here in the same change that
+    introduces a new tag -- e.g. a future "paper" go-deeper kind, or any
+    new badge -- so the legend never drifts out of sync with what the
+    page actually shows.
+  #}
   <header class="masthead">
-    {% if wordmark_svg %}
-    <div class="wordmark">{{ wordmark_svg | safe }}</div>
-    {% else %}
-    <h1>{{ site_title }}</h1>
-    <p class="tagline">{{ site_tagline }}</p>
-    {% endif %}
-    <p class="dateline">{{ build_date.strftime('%A, %B %d, %Y') }}</p>
+    <div class="masthead-inner">
+      <div class="masthead-brand">
+        {% if wordmark_svg %}
+        <div class="wordmark">{{ wordmark_svg | safe }}</div>
+        {% else %}
+        <h1>{{ site_title }}</h1>
+        <p class="tagline">{{ site_tagline }}</p>
+        {% endif %}
+        <p class="dateline">{{ build_date.strftime('%A, %B %d, %Y') }}</p>
+      </div>
+      <aside class="legend" aria-label="Tag legend">
+        <p class="legend-heading">Tag legend</p>
+        <ul class="legend-list">
+          <li><span class="category-badge legend-swatch">TOPIC</span> Story category</li>
+          <li><span class="satire-badge legend-swatch">SATIRE</span> Known satire/parody source</li>
+          <li><span class="factcheck-badge legend-swatch">FACT-CHECKED</span> A similar claim was independently fact-checked</li>
+          <li><span class="kind-tag kind-article legend-swatch">ARTICLE</span> Suggested further reading</li>
+          <li><span class="kind-tag kind-book legend-swatch">BOOK</span> Suggested book, verified before publishing</li>
+          <li><span class="kind-tag kind-source legend-swatch">SOURCE</span> Original article the summary was built from</li>
+        </ul>
+      </aside>
+    </div>
   </header>
 
   {% macro deeper_item(rec) %}

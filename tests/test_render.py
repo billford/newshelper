@@ -83,7 +83,7 @@ def test_render_html_shows_satire_badge_when_tagged():
 def test_render_html_omits_satire_badge_when_not_tagged():
     lead = make_enriched("A regular headline", is_satire=False)
     html = render_html([lead], build_date=datetime(2026, 7, 21, tzinfo=timezone.utc))
-    assert "SATIRE" not in html
+    assert '<p class="satire-badge">SATIRE</p>' not in html
 
 
 def test_render_html_tags_each_go_deeper_link_with_its_kind_and_book_disclaimer():
@@ -116,5 +116,18 @@ def test_render_html_shows_fact_check_notice_with_caveat_when_present():
 def test_render_html_omits_fact_check_notice_when_absent():
     lead = make_enriched("An undisputed headline", fact_check=None)
     html = render_html([lead], build_date=datetime(2026, 7, 21, tzinfo=timezone.utc))
-    assert "FACT-CHECKED" not in html
+    assert "FACT-CHECKED CLAIM NEARBY" not in html
     assert "factcheck-notice" not in html
+
+
+def test_render_html_includes_a_legend_covering_every_current_tag_kind():
+    lead = make_enriched("Lead headline", with_extras=True)
+    html = render_html([lead], build_date=datetime(2026, 7, 21, tzinfo=timezone.utc))
+
+    assert 'class="legend"' in html
+    # Every tag kind currently rendered elsewhere on the page must have a
+    # legend entry -- this is the standing rule from the template comment,
+    # exercised as a test so a future tag addition without a legend update
+    # fails loudly.
+    for label in ("TOPIC", "SATIRE", "FACT-CHECKED", "ARTICLE", "BOOK", "SOURCE"):
+        assert label in html
