@@ -148,6 +148,13 @@ def test_render_html_links_to_the_about_page():
     assert 'href="about.html"' in html
 
 
+def test_render_html_includes_a_published_timestamp():
+    lead = make_enriched("Lead headline")
+    html = render_html([lead], build_date=datetime(2026, 7, 21, 14, 30, tzinfo=timezone.utc))
+    assert "Published July 21, 2026" in html
+    assert "2:30 PM UTC" in html
+
+
 def test_render_about_html_explains_purpose_and_links_back():
     html = render_about_html(build_date=datetime(2026, 7, 21, tzinfo=timezone.utc))
     assert "Why NewsHelper exists" in html

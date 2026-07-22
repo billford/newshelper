@@ -30,6 +30,7 @@
         <p class="tagline">{{ site_tagline }}</p>
         {% endif %}
         <p class="dateline">{{ build_date.strftime('%A, %B %d, %Y') }}</p>
+        <p class="page-published">Published {{ build_date.strftime('%B %d, %Y') }} at {{ build_date.strftime('%-I:%M %p') }} UTC</p>
         <nav class="masthead-nav" aria-label="Site navigation">
           <a href="about.html">About this project</a>
         </nav>
