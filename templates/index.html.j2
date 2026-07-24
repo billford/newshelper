@@ -75,6 +75,12 @@
       <p class="sources">{{ item.story.sources | join(', ') }}</p>
       <p class="summary">{{ item.summary }}</p>
 
+      {% if item.video_path %}
+      <video class="story-video" controls preload="none" playsinline>
+        <source src="{{ item.video_path }}" type="video/mp4">
+      </video>
+      {% endif %}
+
       {% if item.fact_check %}
       <div class="factcheck-notice">
         <p class="factcheck-heading">A related claim was independently fact-checked</p>

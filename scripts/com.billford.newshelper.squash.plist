@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.billford.newshelper.squash</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>/Users/billfordx/Documents/newshelper/scripts/squash_gh_pages.sh</string>
+    </array>
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Weekday</key>
+        <integer>0</integer>
+        <key>Hour</key>
+        <integer>7</integer>
+        <key>Minute</key>
+        <integer>0</integer>
+    </dict>
+    <key>StandardOutPath</key>
+    <string>/Users/billfordx/Documents/newshelper/logs/launchd.squash.out.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/billfordx/Documents/newshelper/logs/launchd.squash.err.log</string>
+    <key>RunAtLoad</key>
+    <false/>
+</dict>
+</plist>

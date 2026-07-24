@@ -77,6 +77,10 @@ def write_site(enriched_stories: list[EnrichedStory], output_dir: str = DIST_DIR
 
     static_out = out / "static"
     if STATIC_DIR.exists():
-        shutil.copytree(STATIC_DIR, static_out, dirs_exist_ok=True)
+        # copy_function=shutil.copy (not the copytree default copy2): copy2
+        # also tries to replicate file metadata/flags via chflags, which
+        # macOS denies with EPERM for files carrying a com.apple.provenance
+        # xattr -- plain content copy is all we need here anyway.
+        shutil.copytree(STATIC_DIR, static_out, dirs_exist_ok=True, copy_function=shutil.copy)
 
     return out

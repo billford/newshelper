@@ -92,3 +92,4 @@ class EnrichedStory:
     articles: list[ArticleRecommendation] = field(default_factory=list)
     sourced_from: list[ArticleRecommendation] = field(default_factory=list)
     fact_check: FactCheckResult | None = None
+    video_path: str | None = None  # relative to site root, e.g. "video/01-slug.mp4"

@@ -8,3 +8,4 @@ venv/
 dist/
 logs/
 .DS_Store
+data/piper_voices/

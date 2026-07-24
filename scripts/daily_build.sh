@@ -40,4 +40,14 @@ if ! bash "${REPO_ROOT}/scripts/publish.sh" >> "${LOG_FILE}" 2>&1; then
 fi
 log "publish succeeded"
 
+# Videos are large (a few MB each) and only useful locally until they're
+# pushed to gh-pages above -- once published, GitHub Pages serves them from
+# the gh-pages branch, so the local dist/video copies are dead weight.
+# Removing them here (rather than leaving cleanup to next run) keeps
+# wanderlust's disk from filling up on days the cron runs but nobody looks.
+if [ -d "${REPO_ROOT}/dist/video" ]; then
+  rm -rf "${REPO_ROOT}/dist/video"
+  log "cleaned up local dist/video"
+fi
+
 log "=== build complete ==="

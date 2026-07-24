@@ -63,3 +63,16 @@ FACT_CHECK_SIMILARITY_THRESHOLD = 0.4
 DIST_DIR = "dist"
 SITE_TITLE = "NewsHelper"
 SITE_TAGLINE = "& the rest of the story"
+
+# --- Video summaries (local test, ADR pending) -----------------------------
+# Piper voice model; see data/piper_voices/README or the download command in
+# the video ADR. Not committed to git -- large binary, fetched on demand.
+PIPER_MODEL_PATH = os.environ.get(
+    "NEWSHELPER_PIPER_MODEL", "data/piper_voices/en_US-lessac-medium.onnx"
+)
+VIDEO_OUTPUT_DIR = "dist/video"
+VIDEO_MIN_SECONDS = 10
+VIDEO_MAX_SECONDS = 20
+VIDEO_WIDTH = 1080
+VIDEO_HEIGHT = 1920  # portrait, matches short-form video platforms
+VIDEO_FPS = 30

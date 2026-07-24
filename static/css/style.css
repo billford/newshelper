@@ -262,6 +262,16 @@ main {
   font-size: 0.95rem;
 }
 
+.story-video {
+  display: block;
+  width: 100%;
+  max-width: 280px;
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  margin: 0 0 1.5rem;
+  background: #000;
+}
+
 .go-deeper {
   border-top: 1px solid var(--rule);
   padding-top: 1rem;
