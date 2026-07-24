@@ -81,3 +81,15 @@ VIDEO_MAX_SECONDS = 20
 VIDEO_WIDTH = 1080
 VIDEO_HEIGHT = 1920  # portrait, matches short-form video platforms
 VIDEO_FPS = 30
+
+# --- Avatar / talking-head (v3 planned, not yet active) --------------------
+# A GPU-cluster inference service (separate machine on the local network,
+# not wanderlust -- these models want a real NVIDIA GPU) that turns a
+# narration wav + the mascot portrait into a lip-synced clip. Unset/empty
+# means the feature is off entirely and video.py falls back to the static
+# branded card, so this is safe to leave unconfigured until the cluster
+# and its inference server actually exist.
+AVATAR_SERVICE_URL = os.environ.get("NEWSHELPER_AVATAR_SERVICE_URL", "")
+AVATAR_SERVICE_TIMEOUT_SECONDS = 180
+AVATAR_POLL_INTERVAL_SECONDS = 3
+AVATAR_IMAGE_PATH = "static/brand/mascot.png"

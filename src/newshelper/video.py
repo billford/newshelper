@@ -1,13 +1,14 @@
-"""Local test pipeline: turn an enriched story into a short (10-20s) summary
-video -- narrated title + summary card, rendered entirely on-machine.
+"""Turns an enriched story into a short narrated summary video: a branded
+title/summary card with each word highlighted karaoke-style as it's spoken
+(accessibility -- lets a viewer follow along without sound), plus the
+NewsHelper owl mascot animated in a bottom-left "newscaster inset" (see
+mascot.py). No Ken Burns zoom -- an earlier version had one, but it was
+distracting alongside the mascot and the word highlighting.
 
-Three steps, each independently testable:
-    1. narrate()   -- Kokoro TTS, text -> wav
-    2. render_card() -- PIL, title/summary -> portrait PNG
-    3. assemble()  -- ffmpeg, image + audio -> mp4 (Ken Burns zoom)
-
-make_story_video() chains all three. This is a standalone experiment, not
-yet wired into build.py -- run via scripts/make_video.py.
+Pipeline: narrate() (Kokoro TTS) -> render_caption_timeline() (one frame
+per word, matched to estimated per-word timing) composited with
+mascot.write_pip_timeline() (the mouth-flap animation) via
+assemble_with_avatar_pip().
 """
 
 import logging
@@ -83,6 +84,29 @@ def build_narration_script(enriched: EnrichedStory) -> str:
     """Title + full summary, verbatim."""
     title = strip_source_suffix(enriched.story.title).rstrip(".")
     return f"{title}. {enriched.summary.strip()}"
+
+
+def estimate_word_timings(script: str, total_duration: float) -> list[tuple[str, float, float]]:
+    """(word, start_seconds, end_seconds) for each word in script, spread
+    across total_duration proportional to word length.
+
+    Kokoro doesn't expose real per-word timestamps, so this is an estimate,
+    not a forced alignment -- consistent with mascot.py's amplitude-driven
+    mouth-flap rather than true lip-sync: simple, no extra dependencies,
+    good enough for a karaoke-style highlight rather than frame-perfect sync.
+    """
+    words = script.split()
+    if not words:
+        return []
+    weights = [len(w) + 1 for w in words]
+    total_weight = sum(weights)
+    timings = []
+    t = 0.0
+    for word, wt in zip(words, weights):
+        dur = total_duration * wt / total_weight
+        timings.append((word, t, t + dur))
+        t += dur
+    return timings
 
 
 _kokoro_instance = None
@@ -191,13 +215,18 @@ def _draw_masthead(draw: ImageDraw.ImageDraw, center_x: int, top: int, width: in
     return y + 30
 
 
-def render_card(enriched: EnrichedStory, out_png: Path) -> Path:
-    """Render a portrait title/summary card, branded to match the site
-    (static/css/style.css palette + static/brand/logo.svg masthead)."""
+HIGHLIGHT_FILL = (240, 214, 168)  # soft on-brand "highlighter" tone
+
+
+def _build_card_chrome(enriched: EnrichedStory) -> tuple[Image.Image, dict]:
+    """The card's static chrome (masthead, accent bar, footer rule, paper
+    background) plus the text layout info needed to draw words onto it --
+    split out from the actual word-drawing so render_caption_timeline can
+    reuse the same chrome across every word-highlight frame instead of
+    redrawing the masthead hundreds of times."""
     img = Image.new("RGB", (VIDEO_WIDTH, VIDEO_HEIGHT), color=PAPER)
     draw = ImageDraw.Draw(img)
     center_x = VIDEO_WIDTH // 2
-
     margin = 90
     max_text_width = VIDEO_WIDTH - 2 * margin
 
@@ -209,52 +238,157 @@ def render_card(enriched: EnrichedStory, out_png: Path) -> Path:
 
     title_line_height = int(title_font.size * 1.25)
     body_line_height = int(body_font.size * 1.45)
+    summary_gap = 50
     block_height = (
-        len(title_lines) * title_line_height
-        + 50
-        + len(summary_lines) * body_line_height
+        len(title_lines) * title_line_height + summary_gap + len(summary_lines) * body_line_height
     )
 
     masthead_bottom = _draw_masthead(draw, center_x, 120, VIDEO_WIDTH - 2 * margin)
-    y = masthead_bottom + max(60, (VIDEO_HEIGHT - masthead_bottom - 200 - block_height) // 2)
+    title_start_y = masthead_bottom + max(60, (VIDEO_HEIGHT - masthead_bottom - 200 - block_height) // 2)
 
-    draw.rectangle([margin, y - 30, margin + 120, y - 22], fill=ACCENT)
-
-    for line in title_lines:
-        draw.text((margin, y), line, font=title_font, fill=INK)
-        y += title_line_height
-    y += 50
-    for line in summary_lines:
-        draw.text((margin, y), line, font=body_font, fill=MUTED)
-        y += body_line_height
+    draw.rectangle([margin, title_start_y - 30, margin + 120, title_start_y - 22], fill=ACCENT)
 
     footer_y = VIDEO_HEIGHT - 90
     draw.rectangle([margin, footer_y, VIDEO_WIDTH - margin, footer_y + 2], fill=RULE)
 
+    layout = {
+        "margin": margin,
+        "title_lines": title_lines,
+        "summary_lines": summary_lines,
+        "title_font": title_font,
+        "body_font": body_font,
+        "title_line_height": title_line_height,
+        "body_line_height": body_line_height,
+        "title_start_y": title_start_y,
+        "summary_gap": summary_gap,
+    }
+    return img, layout
+
+
+def _word_positions(
+    draw: ImageDraw.ImageDraw, lines: list[str], font: ImageFont.FreeTypeFont,
+    margin: int, start_y: int, line_height: int,
+) -> tuple[list[dict], int]:
+    """Per-word pixel positions within already-wrapped lines, so a highlight
+    rectangle can be drawn behind exactly one word without re-wrapping."""
+    positions = []
+    y = start_y
+    for line in lines:
+        x = margin
+        for word in line.split():
+            w = draw.textlength(word, font=font)
+            positions.append({"word": word, "x": x, "y": y, "w": w, "h": font.size})
+            x += draw.textlength(word + " ", font=font)
+        y += line_height
+    return positions, y
+
+
+def render_card_frame(base_img: Image.Image, layout: dict, highlight_index: int | None = None) -> Image.Image:
+    """One frame: base_img's chrome plus title+summary text, with the word
+    at highlight_index (if any) given a highlighter-style background --
+    the karaoke effect, one word lit up at a time as it's narrated."""
+    img = base_img.copy()
+    draw = ImageDraw.Draw(img)
+
+    title_positions, y_after_title = _word_positions(
+        draw, layout["title_lines"], layout["title_font"], layout["margin"],
+        layout["title_start_y"], layout["title_line_height"],
+    )
+    summary_start_y = y_after_title + layout["summary_gap"]
+    summary_positions, _ = _word_positions(
+        draw, layout["summary_lines"], layout["body_font"], layout["margin"],
+        summary_start_y, layout["body_line_height"],
+    )
+    all_positions = title_positions + summary_positions
+
+    if highlight_index is not None and 0 <= highlight_index < len(all_positions):
+        p = all_positions[highlight_index]
+        pad = 5
+        draw.rounded_rectangle(
+            [p["x"] - pad, p["y"] - pad, p["x"] + p["w"] + pad, p["y"] + p["h"] + pad],
+            radius=6, fill=HIGHLIGHT_FILL,
+        )
+
+    for p in title_positions:
+        draw.text((p["x"], p["y"]), p["word"], font=layout["title_font"], fill=INK)
+    for p in summary_positions:
+        draw.text((p["x"], p["y"]), p["word"], font=layout["body_font"], fill=MUTED)
+
+    return img
+
+
+def render_card(enriched: EnrichedStory, out_png: Path) -> Path:
+    """A single static card with no word highlighted -- used for a poster
+    frame, not by the video pipeline itself (see render_caption_timeline)."""
+    base_img, layout = _build_card_chrome(enriched)
+    img = render_card_frame(base_img, layout, highlight_index=None)
     out_png.parent.mkdir(parents=True, exist_ok=True)
     img.save(out_png)
     return out_png
 
 
-def assemble(image_png: Path, audio_wav: Path, out_mp4: Path, duration_seconds: float) -> Path:
-    """Combine a static card and narration into an mp4, with a slow Ken Burns
-    zoom so the frame isn't perfectly static. Requires ffmpeg on PATH."""
+def render_caption_timeline(enriched: EnrichedStory, wav_path: Path, work_dir: Path) -> Path:
+    """Render one card frame per narrated word (that word highlighted) and
+    write an ffmpeg concat-demuxer file timed to each word's estimated
+    duration. Returns the concat file's path."""
+    duration = wav_duration_seconds(wav_path)
+    script = build_narration_script(enriched)
+    timings = estimate_word_timings(script, duration)
+
+    base_img, layout = _build_card_chrome(enriched)
+
+    work_dir.mkdir(parents=True, exist_ok=True)
+    concat_path = work_dir / "card_concat.txt"
+    with open(concat_path, "w") as f:
+        last_frame_path = None
+        for i, (_word, start, end) in enumerate(timings):
+            frame = render_card_frame(base_img, layout, highlight_index=i)
+            frame_path = work_dir / f"card_{i:04d}.png"
+            frame.save(frame_path)
+            f.write(f"file '{frame_path}'\n")
+            f.write(f"duration {max(end - start, 1 / VIDEO_FPS)}\n")
+            last_frame_path = frame_path
+        if last_frame_path:
+            f.write(f"file '{last_frame_path}'\n")
+    return concat_path
+
+
+def assemble_with_avatar_pip(
+    enriched: EnrichedStory, mascot_path: Path, audio_wav: Path, out_mp4: Path, work_dir: Path
+) -> Path:
+    """Composite the word-highlighted caption timeline with the mascot's
+    amplitude-driven mouth-flap animation as a bottom-left "newscaster
+    inset" -- see mascot.py for why it's a mouth-flap and not a real
+    lip-sync model. No Ken Burns zoom: static card frames only, the word
+    highlighting is the motion now."""
+    from newshelper import mascot
+
+    card_concat_path = render_caption_timeline(enriched, audio_wav, work_dir / "card_frames")
+    avatar_concat_path, mask_path = mascot.write_pip_timeline(
+        mascot_path, audio_wav, work_dir / "avatar_frames"
+    )
+
     out_mp4.parent.mkdir(parents=True, exist_ok=True)
-    total_frames = max(1, int(duration_seconds * VIDEO_FPS))
-    zoom_expr = f"if(lte(zoom,1.0),1.05,zoom-0.0006)"
+    pip_margin_x = 40
+    pip_margin_y = 60
+    overlay_x = pip_margin_x
+    overlay_y = VIDEO_HEIGHT - mascot.PIP_SIZE - pip_margin_y
 
     cmd = [
-        "ffmpeg",
-        "-y",
-        "-loop", "1",
-        "-i", str(image_png),
+        "ffmpeg", "-y",
+        "-f", "concat", "-safe", "0", "-i", str(card_concat_path),
+        "-f", "concat", "-safe", "0", "-i", str(avatar_concat_path),
+        "-loop", "1", "-i", str(mask_path),
         "-i", str(audio_wav),
         "-filter_complex",
         (
-            f"[0:v]scale={VIDEO_WIDTH * 2}:{VIDEO_HEIGHT * 2},"
-            f"zoompan=z='{zoom_expr}':d={total_frames}:"
-            f"x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':s={VIDEO_WIDTH}x{VIDEO_HEIGHT}:fps={VIDEO_FPS}"
+            f"[0:v]fps={VIDEO_FPS}[bg];"
+            f"[1:v]fps={VIDEO_FPS}[avatar_v];"
+            f"[2:v]fps={VIDEO_FPS},format=gray[mask];"
+            f"[avatar_v][mask]alphamerge[avatar];"
+            f"[bg][avatar]overlay=x={overlay_x}:y={overlay_y}:shortest=1[outv]"
         ),
+        "-map", "[outv]", "-map", "3:a",
         "-c:v", "libx264",
         "-pix_fmt", "yuv420p",
         "-c:a", "aac",
@@ -266,12 +400,13 @@ def assemble(image_png: Path, audio_wav: Path, out_mp4: Path, duration_seconds: 
 
 
 def make_story_video(enriched: EnrichedStory, work_dir: Path, out_mp4: Path) -> Path:
-    """Full pipeline for one story: script -> narration -> card -> mp4."""
+    """Full pipeline for one story: script -> narration -> captioned card
+    frames + mascot PIP -> mp4."""
+    from newshelper.config import AVATAR_IMAGE_PATH
+
     script = build_narration_script(enriched)
     wav_path = narrate(script, work_dir / "narration.wav")
-    duration = wav_duration_seconds(wav_path)
-    png_path = render_card(enriched, work_dir / "card.png")
-    return assemble(png_path, wav_path, out_mp4, duration)
+    return assemble_with_avatar_pip(enriched, Path(AVATAR_IMAGE_PATH), wav_path, out_mp4, work_dir)
 
 
 def generate_all(enriched_stories: list[EnrichedStory], output_dir: Path) -> None:
