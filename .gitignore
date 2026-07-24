@@ -8,4 +8,12 @@ venv/
 dist/
 logs/
 .DS_Store
-data/piper_voices/
+# Local TTS voice models -- large binaries, always fetched on demand rather
+# than committed (see the download commands in newshelper/video.py's error
+# messages). Broad glob so this covers whichever engine's model directory
+# gets added next (Piper today, Kokoro next), not just the current one.
+data/*voice*/
+data/*.onnx
+data/*.onnx.json
+data/*.bin
+data/*.npz

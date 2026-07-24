@@ -2,7 +2,7 @@
 video -- narrated title + summary card, rendered entirely on-machine.
 
 Three steps, each independently testable:
-    1. narrate()   -- Piper TTS, text -> wav
+    1. narrate()   -- Kokoro TTS, text -> wav
     2. render_card() -- PIL, title/summary -> portrait PNG
     3. assemble()  -- ffmpeg, image + audio -> mp4 (Ken Burns zoom)
 
@@ -18,10 +18,13 @@ import tempfile
 import wave
 from pathlib import Path
 
+import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 
 from newshelper.config import (
-    PIPER_MODEL_PATH,
+    KOKORO_MODEL_PATH,
+    KOKORO_VOICE,
+    KOKORO_VOICES_PATH,
     VIDEO_FPS,
     VIDEO_HEIGHT,
     VIDEO_MAX_SECONDS,
@@ -82,26 +85,52 @@ def build_narration_script(enriched: EnrichedStory) -> str:
     return f"{title}. {enriched.summary.strip()}"
 
 
+_kokoro_instance = None
+
+
+def _get_kokoro():
+    """Lazily load Kokoro (a ~325MB model) once per process and reuse it
+    across stories in the same build run."""
+    global _kokoro_instance
+    if _kokoro_instance is None:
+        from kokoro_onnx import Kokoro  # local import: heavy, optional dependency
+
+        model_path = Path(KOKORO_MODEL_PATH)
+        voices_path = Path(KOKORO_VOICES_PATH)
+        if not model_path.exists() or not voices_path.exists():
+            raise FileNotFoundError(
+                f"Kokoro model files not found at {model_path} / {voices_path}. "
+                "Download them first, e.g.:\n"
+                "  mkdir -p data/kokoro_voices\n"
+                "  curl -sL -o data/kokoro_voices/kokoro-v1.0.onnx "
+                "https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/kokoro-v1.0.onnx\n"
+                "  curl -sL -o data/kokoro_voices/voices-v1.0.bin "
+                "https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/voices-v1.0.bin"
+            )
+        _kokoro_instance = Kokoro(str(model_path), str(voices_path))
+    return _kokoro_instance
+
+
 def narrate(text: str, out_wav: Path) -> Path:
-    """Synthesize `text` to a wav file with Piper. Requires PIPER_MODEL_PATH
-    to exist locally (see data/piper_voices/ -- not committed, download
-    on-demand)."""
-    from piper import PiperVoice  # local import: heavy, optional dependency
+    """Synthesize `text` to a wav file with Kokoro (v2.5 -- replaced Piper,
+    whose voice quality wasn't good enough). Requires KOKORO_MODEL_PATH /
+    KOKORO_VOICES_PATH to exist locally (see data/kokoro_voices/ -- not
+    committed, download on-demand)."""
+    kokoro = _get_kokoro()
+    samples, sample_rate = kokoro.create(text, voice=KOKORO_VOICE, speed=1.0, lang="en-us")
 
-    model_path = Path(PIPER_MODEL_PATH)
-    if not model_path.exists():
-        raise FileNotFoundError(
-            f"Piper voice model not found at {model_path}. Download it first, e.g.:\n"
-            "  curl -sL -o data/piper_voices/en_US-lessac-medium.onnx "
-            "https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/lessac/medium/en_US-lessac-medium.onnx\n"
-            "  curl -sL -o data/piper_voices/en_US-lessac-medium.onnx.json "
-            "https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/lessac/medium/en_US-lessac-medium.onnx.json"
-        )
+    if np.issubdtype(samples.dtype, np.floating):
+        pcm = np.clip(samples, -1.0, 1.0)
+        pcm = (pcm * 32767).astype(np.int16)
+    else:
+        pcm = samples.astype(np.int16)
 
-    voice = PiperVoice.load(str(model_path))
     out_wav.parent.mkdir(parents=True, exist_ok=True)
     with wave.open(str(out_wav), "wb") as wav_file:
-        voice.synthesize_wav(text, wav_file)
+        wav_file.setnchannels(1)
+        wav_file.setsampwidth(2)
+        wav_file.setframerate(sample_rate)
+        wav_file.writeframes(pcm.tobytes())
     return out_wav
 
 

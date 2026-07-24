@@ -65,11 +65,16 @@ SITE_TITLE = "NewsHelper"
 SITE_TAGLINE = "& the rest of the story"
 
 # --- Video summaries (local test, ADR pending) -----------------------------
-# Piper voice model; see data/piper_voices/README or the download command in
-# the video ADR. Not committed to git -- large binary, fetched on demand.
-PIPER_MODEL_PATH = os.environ.get(
-    "NEWSHELPER_PIPER_MODEL", "data/piper_voices/en_US-lessac-medium.onnx"
+# Kokoro TTS model + voice pack (v2.5 -- replaced Piper, whose voice quality
+# wasn't good enough). Not committed to git -- large binaries, fetched on
+# demand; see the download commands in video.py's narrate() error message.
+KOKORO_MODEL_PATH = os.environ.get(
+    "NEWSHELPER_KOKORO_MODEL", "data/kokoro_voices/kokoro-v1.0.onnx"
 )
+KOKORO_VOICES_PATH = os.environ.get(
+    "NEWSHELPER_KOKORO_VOICES", "data/kokoro_voices/voices-v1.0.bin"
+)
+KOKORO_VOICE = os.environ.get("NEWSHELPER_KOKORO_VOICE", "af_heart")
 VIDEO_OUTPUT_DIR = "dist/video"
 VIDEO_MIN_SECONDS = 10
 VIDEO_MAX_SECONDS = 20
