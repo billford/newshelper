@@ -17,3 +17,6 @@ data/*.onnx
 data/*.onnx.json
 data/*.bin
 data/*.npz
+# RAG vector store (ADR-003) -- machine-local index data, rebuilt by
+# ingestion on every build, not source.
+data/rag_store/

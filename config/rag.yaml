@@ -1,0 +1,43 @@
+# NewsHelper RAG chatbot configuration (ADR-003).
+# Loaded via yaml.safe_load only -- never yaml.load. See
+# src/newshelper/rag_config.py for the loader and validation.
+
+chunking:
+  # Word count, not real tokens -- see rag_chunk.py's docstring for why.
+  chunk_size_words: 600
+  overlap_words: 80
+
+retention:
+  # Chunks in the "current" collection older than this are flagged
+  # stale=true, never hard-deleted (ADR-003 Decision 5).
+  current_window_days: 90
+
+retrieval:
+  top_k: 8
+  # Fraction of top_k drawn from "current" vs "reference" when both are
+  # queried -- Phase 2 (chat serving) consumes this, not Phase 1.
+  current_weight: 0.7
+
+embedding:
+  model: nomic-embed-text
+  # Olla speaks the Ollama-compatible API, so this is the same host:port
+  # shape as NEWSHELPER_OLLAMA_HOST -- point it at Olla once the cluster
+  # is reachable. Override via NEWSHELPER_RAG_EMBED_HOST.
+  host: http://localhost:11434
+  timeout_seconds: 30
+
+chat:
+  # Placeholder -- not validated against real cluster hardware yet. See
+  # ADR-003's model note: qwen2.5:32b (the digest pipeline's model) will
+  # not fit a single 16GB card, so this needs its own pick in Phase 2.
+  model: llama3.1:8b
+  host: http://localhost:11434
+  timeout_seconds: 60
+
+persona:
+  # Phase 4, not built yet (ADR-003 non-goal for now). Cadence documented
+  # here so the config shape is stable whenever that lands.
+  cadence_days: 7
+
+store:
+  path: data/rag_store
