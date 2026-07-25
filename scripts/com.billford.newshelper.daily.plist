@@ -7,7 +7,7 @@
     <key>ProgramArguments</key>
     <array>
         <string>/bin/bash</string>
-        <string>/Users/billfordx/Documents/newshelper/scripts/daily_build.sh</string>
+        <string>/Users/billfordx/Projects/newshelper/scripts/daily_build.sh</string>
     </array>
     <key>StartCalendarInterval</key>
     <array>
@@ -25,9 +25,9 @@
         </dict>
     </array>
     <key>StandardOutPath</key>
-    <string>/Users/billfordx/Documents/newshelper/logs/launchd.out.log</string>
+    <string>/Users/billfordx/Projects/newshelper/logs/launchd.out.log</string>
     <key>StandardErrorPath</key>
-    <string>/Users/billfordx/Documents/newshelper/logs/launchd.err.log</string>
+    <string>/Users/billfordx/Projects/newshelper/logs/launchd.err.log</string>
     <key>RunAtLoad</key>
     <false/>
 </dict>

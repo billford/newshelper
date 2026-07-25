@@ -7,7 +7,7 @@
     <key>ProgramArguments</key>
     <array>
         <string>/bin/bash</string>
-        <string>/Users/billfordx/Documents/newshelper/scripts/squash_gh_pages.sh</string>
+        <string>/Users/billfordx/Projects/newshelper/scripts/squash_gh_pages.sh</string>
     </array>
     <key>StartCalendarInterval</key>
     <dict>
@@ -19,9 +19,9 @@
         <integer>0</integer>
     </dict>
     <key>StandardOutPath</key>
-    <string>/Users/billfordx/Documents/newshelper/logs/launchd.squash.out.log</string>
+    <string>/Users/billfordx/Projects/newshelper/logs/launchd.squash.out.log</string>
     <key>StandardErrorPath</key>
-    <string>/Users/billfordx/Documents/newshelper/logs/launchd.squash.err.log</string>
+    <string>/Users/billfordx/Projects/newshelper/logs/launchd.squash.err.log</string>
     <key>RunAtLoad</key>
     <false/>
 </dict>
