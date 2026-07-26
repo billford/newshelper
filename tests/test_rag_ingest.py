@@ -20,6 +20,7 @@ from newshelper.rag_config import (
     RagConfig,
     RetentionConfig,
     RetrievalConfig,
+    ServeConfig,
     StoreConfig,
 )
 from newshelper.rag_embed import FakeEmbedClient
@@ -42,6 +43,7 @@ def make_config(chunk_size_words: int = 600, overlap_words: int = 80, window_day
         chat=ChatConfig(model="fake", host="http://fake", timeout_seconds=1),
         persona=PersonaConfig(cadence_days=7),
         store=StoreConfig(path="unused"),
+        serve=ServeConfig(host="0.0.0.0", port=8901),
     )
 
 

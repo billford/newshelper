@@ -132,16 +132,72 @@ here so Phase 2 doesn't quietly assume `qwen2.5:32b` is reusable as-is.
 - New config surface: `config/rag.yaml`, loaded via `yaml.safe_load` only.
 - New data on disk: a LanceDB directory (gitignored, machine-local, like
   `logs/` and the Kokoro/mascot model files).
-- Phase 2 (`newshelper-chat` serving) needs an actual reachable
-  Olla/Ollama endpoint and a validated chat-model choice before it can be
-  built for real — currently blocked on the GPU cluster coming online.
+
+## Decision 7: Phase 2 architecture — where retrieval actually lives
+
+The cluster came online behind Olla on a separate machine ("lampoon"),
+which already runs an existing pattern for chatbot widgets
+(`~/llm-chat-widget`, documented in `ADDING-A-NEW-CHATBOT.md`): a small
+Node.js proxy per site (guardrails + auth + CORS), Tailscale-Funneled
+publicly, forwarding to Olla's OpenAI-compatible endpoint. That proxy is a
+**passthrough** — it doesn't know about retrieval. Two things had to be
+decided to make this actually RAG rather than a plain chatbot:
+
+**Where retrieval runs.** The LanceDB store is local, file-based data on
+wanderlust; lampoon can't query it directly. wanderlust and lampoon turned
+out to already be on the same home LAN (`lampoon` resolves to
+`192.168.1.156`, no Tailscale required for this hop) — so retrieval runs
+as its own small always-on service, `rag_serve.py`, bound to `0.0.0.0` on
+wanderlust and reachable at its LAN address. It is **never Funneled or
+otherwise exposed to the public internet** — only the final
+chat-completion hop (already public on lampoon for the travel bot) needs
+that; retrieval doesn't, and keeping it LAN-only means a mistake
+configuring it can't become a public-internet exposure. Lampoon's
+newshelper-specific proxy (`~/chatbot-newshelper/server/rag-server.js` on
+lampoon; reference copy at `scripts/lampoon-newshelper-rag-server.js` in
+this repo) calls `rag_serve.py`'s `/retrieve` endpoint, then injects the
+results into the model prompt as `<source>` blocks with an explicit
+instruction to treat them as data, never instructions — this is the
+prompt-injection guardrail §5 of the original spec required.
+
+**One Funnel port per bot, not path-based routing under one port.** The
+original ask was to avoid spending a second public port on a second bot.
+`tailscale serve --set-path` looked like the answer (route `/newshelper`
+and `/` to different backends under lampoon's existing port 443) — but in
+practice, reconfiguring Serve for a new path **silently dropped Funnel
+exposure for the whole port**, briefly taking the live travel bot
+offline. That's real, demonstrated fragility on shared infrastructure, not
+a hypothetical one. **Decision: each bot gets its own dedicated Funnel
+port** (travel bot keeps 443; newshelper is 8443), exactly as
+`ADDING-A-NEW-CHATBOT.md` already documented as the default pattern for a
+2nd bot — isolated by construction, a config mistake on one bot's port
+cannot touch another's.
+
+**Model**: `llama3.1:8b`, already available on the Olla cluster and
+matching the model-class note in this ADR's original model note (32B
+doesn't fit a single 16GB card; 7-8B does).
+
+**Retrieval tuning note**: `retrieval.top_k` started at the original
+spec's suggested default of 8, but a real test against an early (~12
+chunk) store showed it pulling back nearly everything ingested so far
+regardless of relevance, and the citations footer listed sources the
+answer never actually drew from. Lowered to 4. Still a guess, not
+rigorously tuned — revisit as the store grows past its first few days
+(Phase 3).
 
 ## Action Items
 
 - [x] Phase 0 discovery against the real repo, all `[ASSUMED]` items
       resolved or flagged
-- [ ] Phase 1: `newshelper-rag` ingestion module, LanceDB store, retention
+- [x] Phase 1: `newshelper-rag` ingestion module, LanceDB store, retention
       policy, full test suite
-- [ ] Phase 2: `newshelper-chat` serving, once Olla/cluster is reachable
-- [ ] Phase 3: hardening (recency weighting tuning, load test)
+- [x] Phase 2: `newshelper-chat` serving — `rag_retrieve.py` (recency-
+      weighted ranking) + `rag_serve.py` (LAN-only HTTP endpoint) on
+      wanderlust; lampoon's `chatbot-newshelper` deployment (own systemd
+      service, own Funnel port 8443, own `rules.json`/`prod.env`); widget
+      vendored into `static/chat-widget/`, embedded on the digest page.
+      Verified end-to-end through the real public URL with real
+      retrieval, real citations, and auth/guardrails enforced.
+- [ ] Phase 3: hardening (recency weighting tuning, load test, retrieval
+      quality as the store grows past its first few days)
 - [ ] Phase 4: persona LoRA — not started, not scoped, revisit later

@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.billford.newshelper.rag-serve</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/Users/billfordx/Projects/newshelper/.venv/bin/python</string>
+        <string>-m</string>
+        <string>newshelper.rag_serve</string>
+    </array>
+    <key>WorkingDirectory</key>
+    <string>/Users/billfordx/Projects/newshelper</string>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PYTHONPATH</key>
+        <string>/Users/billfordx/Projects/newshelper/src</string>
+    </dict>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+    <key>StandardOutPath</key>
+    <string>/Users/billfordx/Projects/newshelper/logs/rag_serve.out.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/billfordx/Projects/newshelper/logs/rag_serve.err.log</string>
+</dict>
+</plist>

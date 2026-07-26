@@ -1,0 +1,22 @@
+[Unit]
+Description=newshelper guardrailed RAG chat proxy (ADR-003)
+After=network.target
+
+[Service]
+Type=simple
+User=billfordx
+Group=billfordx
+WorkingDirectory=/home/billfordx/chatbot-newshelper
+ExecStart=/bin/sh /home/billfordx/chatbot-newshelper/server/start-prod.sh
+Restart=on-failure
+RestartSec=10
+StandardOutput=append:/home/billfordx/chatbot-newshelper/server/logs/chat-proxy.out.log
+StandardError=append:/home/billfordx/chatbot-newshelper/server/logs/chat-proxy.err.log
+
+NoNewPrivileges=true
+ProtectSystem=full
+ProtectHome=read-only
+ReadWritePaths=/home/billfordx/chatbot-newshelper/server/logs
+
+[Install]
+WantedBy=multi-user.target

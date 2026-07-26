@@ -13,7 +13,9 @@ import yaml
 
 DEFAULT_CONFIG_PATH = Path(__file__).resolve().parent.parent.parent / "config" / "rag.yaml"
 
-_REQUIRED_SECTIONS = ("chunking", "retention", "retrieval", "embedding", "chat", "persona", "store")
+_REQUIRED_SECTIONS = (
+    "chunking", "retention", "retrieval", "embedding", "chat", "persona", "store", "serve",
+)
 
 
 class RagConfigError(ValueError):
@@ -79,8 +81,19 @@ class StoreConfig:
 
 
 @dataclass(frozen=True)
-class RagConfig:
-    """The full validated config/rag.yaml, one section per attribute."""
+class ServeConfig:
+    """rag_serve.py's HTTP retrieval endpoint -- LAN-only, see its module
+    docstring for why this is never Funneled/exposed publicly."""
+
+    host: str
+    port: int
+
+
+@dataclass(frozen=True)
+class RagConfig:  # pylint: disable=too-many-instance-attributes
+    """The full validated config/rag.yaml, one attribute per top-level
+    YAML section -- intentionally flat rather than nested further, since
+    every section is already its own small dataclass."""
 
     chunking: ChunkingConfig
     retention: RetentionConfig
@@ -89,6 +102,7 @@ class RagConfig:
     chat: ChatConfig
     persona: PersonaConfig
     store: StoreConfig
+    serve: ServeConfig
 
 
 def load_config(path: Path | str = DEFAULT_CONFIG_PATH) -> RagConfig:
@@ -120,6 +134,7 @@ def load_config(path: Path | str = DEFAULT_CONFIG_PATH) -> RagConfig:
             chat=ChatConfig(**raw["chat"]),
             persona=PersonaConfig(**raw["persona"]),
             store=StoreConfig(**raw["store"]),
+            serve=ServeConfig(**raw["serve"]),
         )
     except TypeError as exc:
         raise RagConfigError(f"{path} has a malformed section: {exc}") from exc

@@ -1,0 +1,20 @@
+{
+  "_comment": "newshelper's chatbot rules (ADR-003 Phase 2). Deployed to lampoon:~/chatbot-newshelper/server/rules.json -- this copy in the newshelper repo is the reference source of truth (mirrors the pattern from ~/llm-chat-widget's own rules.json living outside git on lampoon).",
+
+  "systemPrompt": "You are NewsHelper's current-events assistant, answering questions about stories from NewsHelper's own daily digest (billford.github.io/newshelper). You will be given <source> blocks containing retrieved digest content -- titles, summaries, and citations. Answer ONLY using information in those sources; if nothing relevant was retrieved, or the sources don't actually cover what's being asked, say plainly that you don't have information on that rather than guessing or using general knowledge. Never fabricate a fact, date, or number not present in the sources. Keep replies concise and neutral in tone, matching the digest's own even-handed framing. You are not a general-purpose assistant or an opinion columnist -- politely decline requests to take a political side, write persuasive/opinion pieces, or discuss anything unrelated to current events covered by NewsHelper.",
+
+  "blockedInputPatterns": [
+    {
+      "name": "opinion-generation",
+      "regex": "\\b(write|compose|draft)\\b.{0,40}\\b(persuasive|opinion|op-ed|argument|essay)\\b.{0,40}\\b(for|against|supporting|opposing)\\b",
+      "response": "I'm just here to help you understand what NewsHelper's digest covered -- I don't write persuasive pieces or take sides on anything. Happy to summarize what the sources actually say, though!"
+    }
+  ],
+
+  "blockedOutputPatterns": [],
+
+  "_notes": [
+    "This bot's factual ceiling is whatever NewsHelper's own digest covers (title + 2-4 sentence AI summary + citations per story) -- see ADR-003 Decision 2. It cannot answer questions about topics the digest never ran a story on.",
+    "blockedOutputPatterns is empty for v1 -- the systemPrompt's own 'say you don't know' instruction plus the retrieval-grounding is the primary defense against fabrication; revisit if fabrication turns out to slip through in practice."
+  ]
+}

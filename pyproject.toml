@@ -1,6 +1,6 @@
 [project]
 name = "newshelper"
-version = "2.6.0"
+version = "2.7.0"
 description = "Beyond-the-headline daily news digest, statically generated"
 requires-python = ">=3.11"
 dependencies = [

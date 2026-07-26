@@ -13,7 +13,13 @@ retention:
   current_window_days: 90
 
 retrieval:
-  top_k: 8
+  # Lowered from an initial 8 after a real test: with only a couple dozen
+  # chunks in the store early on, top_k=8 pulled back nearly everything
+  # ingested so far regardless of relevance, and the citations footer
+  # listed sources the answer never actually drew from. 4 is still a
+  # guess, not rigorously tuned -- revisit as the store grows (Phase 3
+  # hardening).
+  top_k: 4
   # Fraction of top_k drawn from "current" vs "reference" when both are
   # queried -- Phase 2 (chat serving) consumes this, not Phase 1.
   current_weight: 0.7
@@ -41,3 +47,10 @@ persona:
 
 store:
   path: data/rag_store
+
+serve:
+  # rag_serve.py's HTTP retrieval endpoint -- LAN-only by design (see its
+  # module docstring). Bound to 0.0.0.0 so lampoon's chatbot proxy can
+  # reach it over the home network; never Funneled/exposed publicly.
+  host: 0.0.0.0
+  port: 8901

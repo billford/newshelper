@@ -27,6 +27,9 @@ persona:
   cadence_days: 7
 store:
   path: data/rag_store
+serve:
+  host: 0.0.0.0
+  port: 8901
 """
 
 
@@ -52,6 +55,8 @@ def test_load_valid_config_from_a_temp_file(tmp_path):
     assert config.chat.model == "llama3.1:8b"
     assert config.persona.cadence_days == 7
     assert config.store.path == "data/rag_store"
+    assert config.serve.host == "0.0.0.0"
+    assert config.serve.port == 8901
 
 
 def test_missing_file_raises_rag_config_error(tmp_path):
@@ -101,7 +106,8 @@ def test_yaml_arbitrary_tag_execution_is_rejected(tmp_path):
         "embedding:\n  model: x\n  host: http://x\n  timeout_seconds: 1\n"
         "chat:\n  model: x\n  host: http://x\n  timeout_seconds: 1\n"
         "persona:\n  cadence_days: 7\n"
-        "store:\n  path: x\n",
+        "store:\n  path: x\n"
+        "serve:\n  host: 0.0.0.0\n  port: 8901\n",
         encoding="utf-8",
     )
     with pytest.raises(RagConfigError):
