@@ -51,6 +51,64 @@ def recency_weight(published_at: str, now: datetime, window_days: int) -> float:
     return 1.0 - fraction * (1.0 - _RECENCY_FLOOR)
 
 
+def _dedupe_by_url(rows: list[dict], limit: int, seen: set[str]) -> list[dict]:
+    """Keep the first `limit` rows whose url isn't already in `seen`
+    (which this mutates, so a second call sharing the same set won't
+    re-admit a url the first call already took).
+
+    The same underlying story can land in the store more than once: each
+    build re-indexes with a fresh doc_id scoped by that build's date (see
+    rag_ingest.synthesize_doc_id), so a story that persists across a 9am
+    and 6pm build becomes two separate documents with identical
+    title/url. Without this, retrieval could return -- and cite -- the
+    same story two or three times instead of surfacing genuinely
+    different sources.
+    """
+    result = []
+    for row in rows:
+        if len(result) >= limit:
+            break
+        if row["url"] in seen:
+            continue
+        seen.add(row["url"])
+        result.append(row)
+    return result
+
+
+def _to_chunks(rows: list[dict], collection: str) -> list[RetrievedChunk]:
+    return [
+        RetrievedChunk(
+            title=r["title"], url=r["url"], text=r["text"],
+            collection=collection, published_at=r["published_at"],
+        )
+        for r in rows
+    ]
+
+
+def _retrieve_current(  # pylint: disable=too-many-arguments,too-many-positional-arguments
+    vector: list[float], k: int, store: VectorStore, config: RagConfig,
+    now: datetime, seen_urls: set[str],
+) -> list[dict]:
+    hits = store.query(CURRENT_TABLE, vector, top_k=k * _OVERFETCH_MULTIPLIER)
+    window_days = config.retention.current_window_days
+
+    def _score(row: dict) -> float:
+        return row["_distance"] / recency_weight(row["published_at"], now, window_days)
+
+    ranked = sorted(hits, key=_score)
+    return _dedupe_by_url(ranked, k, seen_urls)
+
+
+def _retrieve_reference(
+    vector: list[float], k: int, store: VectorStore, seen_urls: set[str]
+) -> list[dict]:
+    if not k:
+        return []
+    hits = store.query(REFERENCE_TABLE, vector, top_k=k * _OVERFETCH_MULTIPLIER)
+    ranked = sorted(hits, key=lambda r: r["_distance"])
+    return _dedupe_by_url(ranked, k, seen_urls)
+
+
 def retrieve(
     query: str,
     store: VectorStore,
@@ -61,7 +119,9 @@ def retrieve(
     """Embed query and return up to config.retrieval.top_k chunks: mostly
     from `current` (weighted by config.retrieval.current_weight, re-ranked
     by recency), the rest from `reference`. Returns [] for an empty query
-    or if nothing has been ingested yet."""
+    or if nothing has been ingested yet. Never returns the same url twice
+    (see _dedupe_by_url) -- the same story can be re-indexed by more than
+    one build."""
     if not query.strip():
         return []
     now = now or datetime.now(timezone.utc)
@@ -75,25 +135,8 @@ def retrieve(
     current_k = max(1, round(top_k * config.retrieval.current_weight))
     reference_k = max(0, top_k - current_k)
 
-    current_hits = store.query(CURRENT_TABLE, vector, top_k=current_k * _OVERFETCH_MULTIPLIER)
-    reference_hits = store.query(REFERENCE_TABLE, vector, top_k=reference_k) if reference_k else []
+    seen_urls: set[str] = set()
+    current_ranked = _retrieve_current(vector, current_k, store, config, now, seen_urls)
+    reference_ranked = _retrieve_reference(vector, reference_k, store, seen_urls)
 
-    window_days = config.retention.current_window_days
-    current_ranked = sorted(
-        current_hits,
-        key=lambda r: r["_distance"] / recency_weight(r["published_at"], now, window_days),
-    )[:current_k]
-
-    return [
-        RetrievedChunk(
-            title=r["title"], url=r["url"], text=r["text"],
-            collection=CURRENT_TABLE, published_at=r["published_at"],
-        )
-        for r in current_ranked
-    ] + [
-        RetrievedChunk(
-            title=r["title"], url=r["url"], text=r["text"],
-            collection=REFERENCE_TABLE, published_at=r["published_at"],
-        )
-        for r in reference_hits
-    ]
+    return _to_chunks(current_ranked, CURRENT_TABLE) + _to_chunks(reference_ranked, REFERENCE_TABLE)

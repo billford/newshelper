@@ -32,10 +32,13 @@ def make_config(top_k: int = 8, current_weight: float = 0.7, window_days: int = 
     )
 
 
-def make_chunk(chunk_id: str, vector, title: str, published_at: str = "2026-07-20") -> Chunk:
+def make_chunk(
+    chunk_id: str, vector, title: str, published_at: str = "2026-07-20", url: str | None = None
+) -> Chunk:
     return Chunk(
         chunk_id=chunk_id, doc_id=f"doc-{chunk_id}", text=f"text {chunk_id}", title=title,
-        url=f"https://example.com/{chunk_id}", build_id="b1", published_at=published_at, vector=vector,
+        url=url or f"https://example.com/{chunk_id}", build_id="b1",
+        published_at=published_at, vector=vector,
     )
 
 
@@ -154,3 +157,74 @@ def test_retrieve_returns_citation_fields(tmp_path):
     assert results[0].url == "https://example.com/c1"
     assert results[0].published_at == "2026-07-20"
     assert results[0].text == "text c1"
+
+
+def test_retrieve_deduplicates_the_same_story_reindexed_by_two_builds(tmp_path):
+    """A story that persists across a 9am and 6pm build gets re-indexed
+    with a fresh doc_id each time (same title/url, different chunk_id) --
+    retrieval must not return/cite the same url twice."""
+    store = VectorStore(tmp_path / "store")
+    store.add(
+        "current",
+        [
+            make_chunk("morning", [1.0, 0.0], "Recurring story", url="https://example.com/story"),
+            make_chunk("evening", [1.0, 0.0], "Recurring story", url="https://example.com/story"),
+            make_chunk("other", [0.5, 0.5], "A different story", url="https://example.com/other"),
+        ],
+    )
+    config = make_config(top_k=3, current_weight=1.0)
+
+    class FixedEmbed:
+        def embed(self, texts):
+            return [[1.0, 0.0] for _ in texts]
+
+    results = retrieve("query", store, FixedEmbed(), config)
+    urls = [r.url for r in results]
+    assert len(urls) == len(set(urls)), f"expected no duplicate urls, got {urls}"
+    assert "https://example.com/story" in urls
+
+
+def test_retrieve_backfills_from_overfetch_after_deduping(tmp_path):
+    """Deduping shouldn't just shrink the result count when there are
+    enough genuinely distinct stories available -- it should still fill
+    up to top_k from the overfetch pool."""
+    store = VectorStore(tmp_path / "store")
+    store.add(
+        "current",
+        [
+            make_chunk("dup1", [1.0, 0.0], "Recurring story", url="https://example.com/story"),
+            make_chunk("dup2", [1.0, 0.0], "Recurring story", url="https://example.com/story"),
+            make_chunk("unique1", [0.9, 0.1], "Story two", url="https://example.com/two"),
+            make_chunk("unique2", [0.8, 0.2], "Story three", url="https://example.com/three"),
+        ],
+    )
+    config = make_config(top_k=3, current_weight=1.0)
+
+    class FixedEmbed:
+        def embed(self, texts):
+            return [[1.0, 0.0] for _ in texts]
+
+    results = retrieve("query", store, FixedEmbed(), config)
+    urls = {r.url for r in results}
+    assert len(results) == 3
+    assert urls == {"https://example.com/story", "https://example.com/two", "https://example.com/three"}
+
+
+def test_retrieve_dedupes_across_current_and_reference(tmp_path):
+    """The same url showing up in both collections (unlikely, but not
+    impossible) should still only be cited once."""
+    store = VectorStore(tmp_path / "store")
+    store.add("current", [make_chunk("c1", [1.0, 0.0], "Shared", url="https://example.com/shared")])
+    store.add(
+        "reference",
+        [make_chunk("r1", [1.0, 0.0], "Shared", published_at="", url="https://example.com/shared")],
+    )
+    config = make_config(top_k=2, current_weight=0.5)
+
+    class FixedEmbed:
+        def embed(self, texts):
+            return [[1.0, 0.0] for _ in texts]
+
+    results = retrieve("query", store, FixedEmbed(), config)
+    urls = [r.url for r in results]
+    assert len(urls) == len(set(urls))
