@@ -25,6 +25,7 @@ notify_failure() {
 cd "${REPO_ROOT}"
 log "=== build starting ==="
 
+export PATH="/opt/homebrew/bin:/usr/local/bin:${PATH}"
 export PYTHONPATH="${REPO_ROOT}/src"
 export NEWSHELPER_OLLAMA_MODEL="${NEWSHELPER_OLLAMA_MODEL:-qwen2.5:32b}"
 
