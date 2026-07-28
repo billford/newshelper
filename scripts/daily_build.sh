@@ -27,7 +27,6 @@ log "=== build starting ==="
 
 export PATH="/opt/homebrew/bin:/usr/local/bin:${PATH}"
 export PYTHONPATH="${REPO_ROOT}/src"
-export NEWSHELPER_OLLAMA_MODEL="${NEWSHELPER_OLLAMA_MODEL:-qwen2.5:32b}"
 
 if ! "${VENV_PYTHON}" -m newshelper.build >> "${LOG_FILE}" 2>&1; then
   notify_failure "build"
