@@ -37,8 +37,9 @@ flowchart TD
     Enrich -->|"headline text"| FactCheck["factcheck.py\nGoogle Fact Check\nClaims Search API"]
     FactCheck -->|"similarity-gated\n(rank.similarity >= 0.4)"| FactTag["fact_check result\nor none"]
     Enrich --> SourceCite["build_source_citations\n(the original RSS entries,\nno network call)"]
+    Enrich -->|"tone\ngrave/somber/neutral/upbeat"| ToneTag["same LLM call as summary\nsee enrich.VALID_TONES"]
 
-    Enrich --> Video["video.py, per story\nKokoro TTS narration ->\nkaraoke-caption frames +\nowl mascot mouth-flap ->\nffmpeg assemble\n(skips, doesn't fail build,\non any per-story error)"]
+    ToneTag --> Video["video.py, per story\nTONE_VOICE picks narrator\nvoice+speed by tone ->\nKokoro TTS narration ->\nkaraoke-caption frames +\nowl mascot mouth-flap ->\nffmpeg assemble\n(skips, doesn't fail build,\non any per-story error)"]
     Video --> DistVideo["dist/video/*.mp4\n(10-20s narrated clip)"]
 
     Enrich --> Render["render.py\nJinja2 templates\n+ brand assets"]
@@ -54,7 +55,7 @@ flowchart TD
 1. **Fetch** — pull candidates from Google News, Google Trends, BBC, NPR RSS feeds.
 2. **Rank** — cluster near-duplicate titles across feeds, score by source count, keep top 6; tag known satire/parody domains (`data/satire_domains.json`) without dropping them. Plain code, not model-based.
 3. **Enrich** — ask a local model (Ollama, on a small GPU cluster — two RTX 5060 16GB boxes behind [Olla](https://github.com/thushan/olla) as an Ollama-compatible load balancer, `lampoon.billford.io:40114`) for a summary and book/article topic ideas per story, then verify every book suggestion against Open Library (fallback: Google Books) before it's allowed to be published. The reader-facing book link is a plain Bookshop.org search, not an affiliate link. Also cites the original RSS articles the summary was built from ("SOURCE" go-deeper links), and looks up a grounded fact-check via Google's Fact Check Claims Search API (`factcheck.py`) — independent of satire tagging, never asserts its own truth verdict, just surfaces a real published rating with a link.
-4. **Video** (`video.py`) — per story, narrate the title + full summary with local Kokoro TTS, render karaoke-style word-highlight captions over a branded card with the NewsHelper owl mascot animated in a bottom-left inset (amplitude-driven mouth flap, not real lip-sync — see `mascot.py`), then assemble with `ffmpeg` into a 10-20s `.mp4`. A per-story failure is logged and skipped, not fatal to the build. Requires `ffmpeg` on `PATH` — see Scheduling below for why that's not a given under launchd.
+4. **Video** (`video.py`) — per story, narrate the title + full summary with local Kokoro TTS, render karaoke-style word-highlight captions over a branded card with the NewsHelper owl mascot animated in a bottom-left inset (amplitude-driven mouth flap, not real lip-sync — see `mascot.py`), then assemble with `ffmpeg` into a 10-20s `.mp4`. Narration voice and pace are chosen by the story's `tone` (`grave`/`somber`/`neutral`/`upbeat`, classified by the same enrichment LLM call that writes the summary — see `config.TONE_VOICE`), so a mass-casualty story isn't read in the same bright voice as a human-interest piece. A per-story failure is logged and skipped, not fatal to the build. Requires `ffmpeg` on `PATH` — see Scheduling below for why that's not a given under launchd.
 5. **Render** — write a static `dist/index.html` and `dist/about.html` (old-newspaper editorial style, brand assets in `static/brand/`, no client-side JS). Every story — lead and "also today" — gets the same summary + go-deeper treatment, laid out as a 2-column grid, with its video embedded when generation succeeded.
 
 ## Scheduling
