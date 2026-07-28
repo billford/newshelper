@@ -35,7 +35,13 @@ TOP_STORY_COUNT = 6
 TITLE_SIMILARITY_THRESHOLD = 0.55
 
 # --- Local model (Ollama) ------------------------------------------------
-OLLAMA_HOST = os.environ.get("NEWSHELPER_OLLAMA_HOST", "http://localhost:11434")
+# Default is the GPU cluster (RTX 5060 cards behind Olla, see
+# ADR-003) rather than localhost, so a run with no env override still
+# uses the intended backend instead of silently falling back to
+# whatever Ollama happens to be running on this machine.
+OLLAMA_HOST = os.environ.get(
+    "NEWSHELPER_OLLAMA_HOST", "http://lampoon.billford.io:40114/olla/ollama"
+)
 OLLAMA_MODEL = os.environ.get("NEWSHELPER_OLLAMA_MODEL", "llama3.1:8b")
 OLLAMA_TIMEOUT_SECONDS = 120
 
