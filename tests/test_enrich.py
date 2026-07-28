@@ -103,3 +103,25 @@ def test_enrich_story_leaves_fact_check_none_when_no_match():
     with patch("newshelper.enrich.check_headline", return_value=None):
         result = enrich_story(make_story(), client)
     assert result.fact_check is None
+
+
+def test_enrich_story_uses_model_tone_when_valid():
+    client = FakeOllamaClient(
+        json.dumps({"summary": "x", "book_topics": [], "article_topics": [], "tone": "grave"})
+    )
+    result = enrich_story(make_story(), client)
+    assert result.tone == "grave"
+
+
+def test_enrich_story_defaults_tone_to_neutral_when_missing():
+    client = FakeOllamaClient(json.dumps({"summary": "x", "book_topics": [], "article_topics": []}))
+    result = enrich_story(make_story(), client)
+    assert result.tone == "neutral"
+
+
+def test_enrich_story_falls_back_to_neutral_on_unrecognized_tone():
+    client = FakeOllamaClient(
+        json.dumps({"summary": "x", "book_topics": [], "article_topics": [], "tone": "excited"})
+    )
+    result = enrich_story(make_story(), client)
+    assert result.tone == "neutral"

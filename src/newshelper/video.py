@@ -26,6 +26,7 @@ from newshelper.config import (
     KOKORO_MODEL_PATH,
     KOKORO_VOICE,
     KOKORO_VOICES_PATH,
+    TONE_VOICE,
     VIDEO_FPS,
     VIDEO_HEIGHT,
     VIDEO_MAX_SECONDS,
@@ -135,13 +136,15 @@ def _get_kokoro():
     return _kokoro_instance
 
 
-def narrate(text: str, out_wav: Path) -> Path:
+def narrate(text: str, out_wav: Path, voice: str = KOKORO_VOICE, speed: float = 1.0) -> Path:
     """Synthesize `text` to a wav file with Kokoro (v2.5 -- replaced Piper,
     whose voice quality wasn't good enough). Requires KOKORO_MODEL_PATH /
     KOKORO_VOICES_PATH to exist locally (see data/kokoro_voices/ -- not
-    committed, download on-demand)."""
+    committed, download on-demand). `voice`/`speed` default to the
+    standard narrator at normal pace; make_story_video overrides both per
+    TONE_VOICE to moderate mood -- see config.TONE_VOICE."""
     kokoro = _get_kokoro()
-    samples, sample_rate = kokoro.create(text, voice=KOKORO_VOICE, speed=1.0, lang="en-us")
+    samples, sample_rate = kokoro.create(text, voice=voice, speed=speed, lang="en-us")
 
     if np.issubdtype(samples.dtype, np.floating):
         pcm = np.clip(samples, -1.0, 1.0)
@@ -405,7 +408,8 @@ def make_story_video(enriched: EnrichedStory, work_dir: Path, out_mp4: Path) -> 
     from newshelper.config import AVATAR_IMAGE_PATH
 
     script = build_narration_script(enriched)
-    wav_path = narrate(script, work_dir / "narration.wav")
+    voice, speed = TONE_VOICE.get(enriched.tone, TONE_VOICE["neutral"])
+    wav_path = narrate(script, work_dir / "narration.wav", voice=voice, speed=speed)
     return assemble_with_avatar_pip(enriched, Path(AVATAR_IMAGE_PATH), wav_path, out_mp4, work_dir)
 
 

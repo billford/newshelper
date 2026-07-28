@@ -81,6 +81,16 @@ KOKORO_VOICES_PATH = os.environ.get(
     "NEWSHELPER_KOKORO_VOICES", "data/kokoro_voices/voices-v1.0.bin"
 )
 KOKORO_VOICE = os.environ.get("NEWSHELPER_KOKORO_VOICE", "af_heart")
+# Per-tone narration (voice, speed) -- kokoro-onnx exposes no direct emotion
+# control, so mood is approximated by slowing the pace for heavier stories
+# and, for "grave" specifically, swapping to a lower/calmer voice rather
+# than the default narrator. See enrich.VALID_TONES for how tone is chosen.
+TONE_VOICE = {
+    "grave": ("am_onyx", 0.86),
+    "somber": (KOKORO_VOICE, 0.93),
+    "neutral": (KOKORO_VOICE, 1.0),
+    "upbeat": (KOKORO_VOICE, 1.04),
+}
 VIDEO_OUTPUT_DIR = "dist/video"
 VIDEO_MIN_SECONDS = 10
 VIDEO_MAX_SECONDS = 20

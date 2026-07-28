@@ -93,3 +93,4 @@ class EnrichedStory:
     sourced_from: list[ArticleRecommendation] = field(default_factory=list)
     fact_check: FactCheckResult | None = None
     video_path: str | None = None  # relative to site root, e.g. "video/01-slug.mp4"
+    tone: str = "neutral"  # narration mood: grave / somber / neutral / upbeat, see enrich.VALID_TONES

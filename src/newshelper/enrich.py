@@ -10,6 +10,12 @@ from newshelper.ollama_client import OllamaClientProtocol
 
 logger = logging.getLogger(__name__)
 
+# Narration mood for video.py -- keep this set small and the definitions
+# concrete, since a model asked for open-ended "tone" tends to drift toward
+# whatever adjective it saw most recently in the headline.
+VALID_TONES = ("grave", "somber", "neutral", "upbeat")
+DEFAULT_TONE = "neutral"
+
 PROMPT_TEMPLATE = """You are helping build a daily news digest that explains \
 the story behind a headline, not just the headline itself.
 
@@ -22,6 +28,12 @@ Respond with ONLY a JSON object with these keys:
 - "book_topics": a list of 1-2 short topic phrases (not titles) describing a \
 nonfiction book subject that would help a reader understand this story in depth.
 - "article_topics": a list of 1-2 short topic phrases for a follow-up article.
+- "tone": the single best fit from exactly these four words for how a \
+narrator reading this story aloud should sound -- "grave" (deaths, \
+casualties, disasters, atrocities), "somber" (serious conflict, hardship, \
+or controversy but no confirmed deaths), "neutral" (routine politics, \
+business, science, procedural news), or "upbeat" (positive, lighthearted, \
+or human-interest news). Pick exactly one of those four words.
 """
 
 
@@ -68,6 +80,12 @@ def enrich_story(story: Story, client: OllamaClientProtocol) -> EnrichedStory:
 
     summary = parsed.get("summary", "").strip() or "Summary unavailable."
 
+    tone = parsed.get("tone", DEFAULT_TONE)
+    if tone not in VALID_TONES:
+        if tone:
+            logger.warning("model returned unrecognized tone %r; defaulting to %r", tone, DEFAULT_TONE)
+        tone = DEFAULT_TONE
+
     books = []
     for topic in parsed.get("book_topics", []):
         recommendation = verify_book_topic(topic)
@@ -89,6 +107,7 @@ def enrich_story(story: Story, client: OllamaClientProtocol) -> EnrichedStory:
         articles=articles,
         sourced_from=sourced_from,
         fact_check=fact_check,
+        tone=tone,
     )
 
 
