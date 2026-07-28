@@ -166,13 +166,18 @@ function enforceNoInfoDisclaimer(reply) {
 
 // Real test: despite being told to cite inline as [1]/[2] and never write
 // its own citation section, the model still sometimes generates a trailing
-// "Sources:" heading with empty/templated [N] lines of its own -- likely a
-// habit picked up from RAG examples in its training data. The prompt
-// instruction alone didn't reliably stop it (same story as
-// NO_INFO_PATTERN above), so strip anything matching that shape before
-// appending the real, populated citationsFooter -- otherwise the reply
-// ends up with two "Sources:" blocks, one blank.
-const MODEL_SOURCES_BLOCK = /\n+sources:\s*(\n\s*\[\d+\][^\n]*)*\s*$/i;
+// "Sources:" heading of its own -- likely a habit picked up from RAG
+// examples in its training data. The prompt instruction alone didn't
+// reliably stop it (same story as NO_INFO_PATTERN above), so strip a
+// trailing "Sources:" heading and everything after it before appending the
+// real, populated citationsFooter -- otherwise the reply ends up with two
+// "Sources:" blocks. The list-item shape isn't constrained to "[N] ..." --
+// an earlier version only matched that shape and missed model output like
+// "- Title - Outlet (https://...)", letting the model's own giant
+// redirect URLs leak straight into the reply. Since the real footer is
+// always re-appended after this strip, it's safe to match to end-of-string
+// regardless of what the model's own list looks like.
+const MODEL_SOURCES_BLOCK = /\n+sources:[\s\S]*$/i;
 
 function stripModelGeneratedSources(reply) {
   return reply.replace(MODEL_SOURCES_BLOCK, '').trimEnd();
