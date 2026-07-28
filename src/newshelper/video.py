@@ -26,6 +26,7 @@ from newshelper.config import (
     KOKORO_MODEL_PATH,
     KOKORO_VOICE,
     KOKORO_VOICES_PATH,
+    NARRATION_PRONUNCIATION_OVERRIDES,
     TONE_VOICE,
     VIDEO_FPS,
     VIDEO_HEIGHT,
@@ -85,6 +86,30 @@ def build_narration_script(enriched: EnrichedStory) -> str:
     """Title + full summary, verbatim."""
     title = strip_source_suffix(enriched.story.title).rstrip(".")
     return f"{title}. {enriched.summary.strip()}"
+
+
+_PRONUNCIATION_RE = re.compile(
+    r"\b(?:" + "|".join(re.escape(word) for word in NARRATION_PRONUNCIATION_OVERRIDES) + r")\b"
+    if NARRATION_PRONUNCIATION_OVERRIDES
+    else r"(?!)",
+    re.IGNORECASE,
+)
+
+
+def apply_pronunciation_overrides(text: str) -> str:
+    """Respell known-mispronounced words for the TTS engine only -- never
+    call this on text that reaches the screen (captions keep the real
+    spelling). See config.NARRATION_PRONUNCIATION_OVERRIDES for why: Kokoro's
+    phonemizer (espeak-ng) has no dictionary entry for these and guesses
+    wrong from spelling alone."""
+    if not NARRATION_PRONUNCIATION_OVERRIDES:
+        return text
+    return _PRONUNCIATION_RE.sub(
+        lambda m: NARRATION_PRONUNCIATION_OVERRIDES[
+            next(w for w in NARRATION_PRONUNCIATION_OVERRIDES if w.lower() == m.group(0).lower())
+        ],
+        text,
+    )
 
 
 def estimate_word_timings(script: str, total_duration: float) -> list[tuple[str, float, float]]:
@@ -409,7 +434,8 @@ def make_story_video(enriched: EnrichedStory, work_dir: Path, out_mp4: Path) -> 
 
     script = build_narration_script(enriched)
     voice, speed = TONE_VOICE.get(enriched.tone, TONE_VOICE["neutral"])
-    wav_path = narrate(script, work_dir / "narration.wav", voice=voice, speed=speed)
+    spoken_script = apply_pronunciation_overrides(script)
+    wav_path = narrate(spoken_script, work_dir / "narration.wav", voice=voice, speed=speed)
     return assemble_with_avatar_pip(enriched, Path(AVATAR_IMAGE_PATH), wav_path, out_mp4, work_dir)
 
 

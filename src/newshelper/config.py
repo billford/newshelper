@@ -97,6 +97,19 @@ TONE_VOICE = {
     "neutral": (KOKORO_VOICE, 1.0),
     "upbeat": (KOKORO_VOICE, 1.04),
 }
+# Phonetic respellings fed to the TTS engine only (captions keep the real
+# spelling) -- espeak-ng, Kokoro's phonemizer backend, has no dictionary
+# entry for these place/group names and guesses wrong from spelling alone
+# (e.g. "Oman" -> "oh-MAN" like the superhero, not "oh-MAHN"). Verified by
+# comparing espeak's IPA output before/after respelling; add an entry here
+# only after checking it actually improves, since a wrong guess here is
+# just as easy to introduce as a wrong guess in espeak's own lexicon.
+NARRATION_PRONUNCIATION_OVERRIDES = {
+    "Oman": "Oh-Mahn",
+    "Hormuz": "Hor-mooz",
+    "Houthi": "Hoo-thee",
+    "Houthis": "Hoo-theez",
+}
 VIDEO_OUTPUT_DIR = "dist/video"
 VIDEO_MIN_SECONDS = 10
 VIDEO_MAX_SECONDS = 20
