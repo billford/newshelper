@@ -33,6 +33,7 @@ from newshelper.config import (
     VIDEO_MAX_SECONDS,
     VIDEO_WIDTH,
 )
+from newshelper.enrich import SUMMARY_UNAVAILABLE
 from newshelper.models import EnrichedStory
 
 logger = logging.getLogger(__name__)
@@ -439,6 +440,20 @@ def make_story_video(enriched: EnrichedStory, work_dir: Path, out_mp4: Path) -> 
     return assemble_with_avatar_pip(enriched, Path(AVATAR_IMAGE_PATH), wav_path, out_mp4, work_dir)
 
 
+def has_narratable_summary(enriched: EnrichedStory) -> bool:
+    """Whether this story has a real summary worth narrating.
+
+    A story can reach here with the placeholder summary -- the model returned
+    JSON with no usable "summary" key, or enrichment failed outright. The
+    narration script is title + summary, so without this guard the clip reads
+    the headline and then says "Summary unavailable." aloud, which sounds
+    broken. Better to publish no video: render.py already omits the player
+    when video_path is None.
+    """
+    summary = enriched.summary.strip()
+    return bool(summary) and summary != SUMMARY_UNAVAILABLE
+
+
 def generate_all(enriched_stories: list[EnrichedStory], output_dir: Path) -> None:
     """Render one video per story into output_dir, setting each story's
     `video_path` (relative to the site root, e.g. "video/01-slug.mp4") on
@@ -446,7 +461,8 @@ def generate_all(enriched_stories: list[EnrichedStory], output_dir: Path) -> Non
 
     A single story's video failing (missing model, a bad ffmpeg run, etc.)
     is logged and skipped rather than raised -- this is a best-effort
-    enhancement, never a reason to fail the whole daily build.
+    enhancement, never a reason to fail the whole daily build. A story with
+    no real summary is skipped too, before any work is done.
     """
     if output_dir.exists():
         shutil.rmtree(output_dir)
@@ -454,6 +470,13 @@ def generate_all(enriched_stories: list[EnrichedStory], output_dir: Path) -> Non
 
     with tempfile.TemporaryDirectory() as tmp:
         for i, enriched in enumerate(enriched_stories, start=1):
+            if not has_narratable_summary(enriched):
+                logger.warning(
+                    "no summary for %r; skipping video rather than narrating the placeholder",
+                    enriched.story.title,
+                )
+                continue
+
             slug = slugify(strip_source_suffix(enriched.story.title)) or f"story-{i}"
             filename = f"{i:02d}-{slug}.mp4"
             out_path = output_dir / filename

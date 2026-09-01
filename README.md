@@ -55,6 +55,17 @@ flowchart TD
 1. **Fetch** — pull candidates from Google News, Google Trends, BBC, NPR RSS feeds.
 2. **Rank** — cluster near-duplicate titles across feeds, score by source count, keep top 6; tag known satire/parody domains (`data/satire_domains.json`) without dropping them. Plain code, not model-based.
 3. **Enrich** — ask a local model (Ollama, on a small GPU cluster — two RTX 5060 16GB boxes behind [Olla](https://github.com/thushan/olla) as an Ollama-compatible load balancer, `lampoon.billford.io:40114`) for a summary and book/article topic ideas per story, then verify every book suggestion against Open Library (fallback: Google Books) before it's allowed to be published. The reader-facing book link is a plain Bookshop.org search, not an affiliate link. Also cites the original RSS articles the summary was built from ("SOURCE" go-deeper links), and looks up a grounded fact-check via Google's Fact Check Claims Search API (`factcheck.py`) — independent of satire tagging, never asserts its own truth verdict, just surfaces a real published rating with a link.
+
+   The GPU cluster is shared with other jobs on the LAN, so enrichment is
+   written to survive a busy one. `ollama_client.py` retries a 429/5xx or a
+   dropped connection (`OLLAMA_MAX_ATTEMPTS`, widening backoff), and a story
+   whose call still fails is kept — with its real source citations and
+   fact-check, minus the summary — rather than killing the build, the same
+   log-and-skip posture `video.py` takes. The one exception is *every* story
+   failing: that means the backend is down, so `enrich_all` raises
+   `EnrichmentUnavailable` and the build aborts **before** publishing, which
+   leaves the last good digest up instead of overwriting it with six empty
+   stories.
 4. **Video** (`video.py`) — per story, narrate the title + full summary with local Kokoro TTS, render karaoke-style word-highlight captions over a branded card with the NewsHelper owl mascot animated in a bottom-left inset (amplitude-driven mouth flap, not real lip-sync — see `mascot.py`), then assemble with `ffmpeg` into a 10-20s `.mp4`. Narration voice and pace are chosen by the story's `tone` (`grave`/`somber`/`neutral`/`upbeat`, classified by the same enrichment LLM call that writes the summary — see `config.TONE_VOICE`), so a mass-casualty story isn't read in the same bright voice as a human-interest piece. A per-story failure is logged and skipped, not fatal to the build. Requires `ffmpeg` on `PATH` — see Scheduling below for why that's not a given under launchd.
 5. **Render** — write a static `dist/index.html` and `dist/about.html` (old-newspaper editorial style, brand assets in `static/brand/`, no client-side JS). Every story — lead and "also today" — gets the same summary + go-deeper treatment, laid out as a 2-column grid, with its video embedded when generation succeeded.
 

@@ -16,6 +16,17 @@ logger = logging.getLogger(__name__)
 VALID_TONES = ("grave", "somber", "neutral", "upbeat")
 DEFAULT_TONE = "neutral"
 
+SUMMARY_UNAVAILABLE = "Summary unavailable."
+
+
+class EnrichmentUnavailable(RuntimeError):
+    """Raised when no story could be enriched at all.
+
+    Distinct from a handful of per-story failures: if every call failed the
+    model backend is down, and publishing six summary-less stories would
+    overwrite a perfectly good digest with an empty one.
+    """
+
 PROMPT_TEMPLATE = """You are helping build a daily news digest that explains \
 the story behind a headline, not just the headline itself.
 
@@ -78,7 +89,7 @@ def enrich_story(story: Story, client: OllamaClientProtocol) -> EnrichedStory:
     raw_response = client.generate(build_prompt(story))
     parsed = parse_model_response(raw_response)
 
-    summary = parsed.get("summary", "").strip() or "Summary unavailable."
+    summary = parsed.get("summary", "").strip() or SUMMARY_UNAVAILABLE
 
     tone = parsed.get("tone", DEFAULT_TONE)
     if tone not in VALID_TONES:
@@ -111,6 +122,56 @@ def enrich_story(story: Story, client: OllamaClientProtocol) -> EnrichedStory:
     )
 
 
+def enrich_without_model(story: Story) -> EnrichedStory:
+    """Build a story record from everything that doesn't need the model.
+
+    The source citations are purely structural and the fact-check is its own
+    API, so a story whose summary call failed still carries real go-deeper
+    links rather than vanishing from the digest.
+    """
+    try:
+        fact_check = check_headline(story.title)
+    except Exception:
+        logger.exception("fact-check lookup failed for %r; continuing without it", story.title)
+        fact_check = None
+
+    return EnrichedStory(
+        story=story,
+        summary=SUMMARY_UNAVAILABLE,
+        books=[],
+        articles=[],
+        sourced_from=build_source_citations(story.candidates),
+        fact_check=fact_check,
+        tone=DEFAULT_TONE,
+    )
+
+
 def enrich_all(stories: list[Story], client: OllamaClientProtocol) -> list[EnrichedStory]:
-    """Enrich every story in the day's top-N list."""
-    return [enrich_story(story, client) for story in stories]
+    """Enrich every story in the day's top-N list.
+
+    One story failing must not cost the whole digest -- the same log-and-skip
+    posture video.py already takes. But if *every* story fails, the backend is
+    down and we raise instead of publishing a digest with no summaries in it.
+    """
+    enriched: list[EnrichedStory] = []
+    failed = 0
+
+    for story in stories:
+        try:
+            enriched.append(enrich_story(story, client))
+        except Exception:
+            logger.exception(
+                "enrichment failed for %r; keeping the story without a summary", story.title
+            )
+            enriched.append(enrich_without_model(story))
+            failed += 1
+
+    if stories and failed == len(stories):
+        raise EnrichmentUnavailable(
+            f"all {failed} stories failed enrichment; the model backend looks unavailable"
+        )
+
+    if failed:
+        logger.warning("%d of %d stories published without a summary", failed, len(stories))
+
+    return enriched

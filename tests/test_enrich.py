@@ -3,7 +3,15 @@
 import json
 from unittest.mock import patch
 
-from newshelper.enrich import build_source_citations, enrich_story, parse_model_response
+import pytest
+
+from newshelper.enrich import (
+    EnrichmentUnavailable,
+    build_source_citations,
+    enrich_all,
+    enrich_story,
+    parse_model_response,
+)
 from newshelper.models import BookRecommendation, FactCheckResult, HeadlineCandidate, Story
 from newshelper.ollama_client import FakeOllamaClient
 
@@ -125,3 +133,66 @@ def test_enrich_story_falls_back_to_neutral_on_unrecognized_tone():
     )
     result = enrich_story(make_story(), client)
     assert result.tone == "neutral"
+
+
+# --- resilience when the GPU cluster is busy or down ----------------------
+
+
+class ExplodingOllamaClient:
+    """Stands in for a cluster returning 503 to every call."""
+
+    def __init__(self, error: Exception | None = None):
+        self._error = error or RuntimeError("503 Server Error: Service Unavailable")
+
+    def generate(self, prompt: str) -> str:
+        del prompt
+        raise self._error
+
+
+class FlakyOllamaClient:
+    """Fails the first call, then behaves like a working model."""
+
+    def __init__(self, good_response: str):
+        self._good_response = good_response
+        self.calls = 0
+
+    def generate(self, prompt: str) -> str:
+        del prompt
+        self.calls += 1
+        if self.calls == 1:
+            raise RuntimeError("503 Server Error: Service Unavailable")
+        return self._good_response
+
+
+def test_enrich_all_keeps_going_when_one_story_fails():
+    good = json.dumps({"summary": "a real summary", "book_topics": [], "article_topics": []})
+    stories = [make_story(), make_story()]
+    with patch("newshelper.enrich.check_headline", return_value=None):
+        results = enrich_all(stories, FlakyOllamaClient(good))
+
+    assert len(results) == 2
+    summaries = sorted(r.summary for r in results)
+    assert summaries == ["Summary unavailable.", "a real summary"]
+
+
+def test_enrich_all_still_cites_sources_for_a_failed_story():
+    stories = [make_story(), make_story()]
+    good = json.dumps({"summary": "ok", "book_topics": [], "article_topics": []})
+    with patch("newshelper.enrich.check_headline", return_value=None):
+        results = enrich_all(stories, FlakyOllamaClient(good))
+
+    failed = next(r for r in results if r.summary == "Summary unavailable.")
+    assert len(failed.sourced_from) == 1
+    assert failed.sourced_from[0].url == "https://bbc.example/1"
+    assert failed.tone == "neutral"
+
+
+def test_enrich_all_raises_when_every_story_fails():
+    stories = [make_story(), make_story()]
+    with patch("newshelper.enrich.check_headline", return_value=None):
+        with pytest.raises(EnrichmentUnavailable):
+            enrich_all(stories, ExplodingOllamaClient())
+
+
+def test_enrich_all_handles_an_empty_story_list():
+    assert enrich_all([], ExplodingOllamaClient()) == []

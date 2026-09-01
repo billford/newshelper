@@ -45,6 +45,12 @@ OLLAMA_HOST = os.environ.get(
 OLLAMA_MODEL = os.environ.get("NEWSHELPER_OLLAMA_MODEL", "llama3.1:8b")
 OLLAMA_TIMEOUT_SECONDS = 120
 
+# The GPU cluster is shared with other jobs, so a single 503 ("server busy")
+# is often just a full queue that drains a moment later. Retry a few times
+# with a widening gap before giving up on a story.
+OLLAMA_MAX_ATTEMPTS = 3
+OLLAMA_RETRY_BACKOFF_SECONDS = 5
+
 # --- Book verification APIs ----------------------------------------------
 OPEN_LIBRARY_SEARCH_URL = "https://openlibrary.org/search.json"
 GOOGLE_BOOKS_SEARCH_URL = "https://www.googleapis.com/books/v1/volumes"

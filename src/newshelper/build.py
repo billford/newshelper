@@ -11,7 +11,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from newshelper.config import DIST_DIR
-from newshelper.enrich import enrich_all
+from newshelper.enrich import EnrichmentUnavailable, enrich_all
 from newshelper.fetch import fetch_all
 from newshelper.ollama_client import OllamaClient
 from newshelper.rag_ingest import run_post_build_ingestion
@@ -37,7 +37,11 @@ def run() -> int:
         return 1
     logger.info("selected %d top stories", len(stories))
 
-    enriched = enrich_all(stories, OllamaClient())
+    try:
+        enriched = enrich_all(stories, OllamaClient())
+    except EnrichmentUnavailable as error:
+        logger.error("%s; aborting before publish so the last good digest stays up", error)
+        return 1
 
     try:
         generate_all(enriched, Path(DIST_DIR) / "video")
