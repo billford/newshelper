@@ -13,11 +13,17 @@
  * network, never itself Funneled to the public internet. Only this
  * proxy's own /v1/chat/completions is Funneled.
  *
- * If retrieval fails (wanderlust down, network hiccup, empty result),
- * this degrades to answering with no retrieved context rather than
- * failing the request outright -- the systemPrompt (rules.json) already
- * instructs the model to say so rather than fabricate when it has
- * nothing relevant to go on.
+ * Retrieval returning *no matches* degrades to answering with no context
+ * -- the systemPrompt (rules.json) already instructs the model to say so
+ * rather than fabricate.
+ *
+ * Retrieval being *unreachable* is treated differently, and deliberately.
+ * It used to take the same path, which meant a month of "I don't have
+ * information on that right now" answers while RETRIEVAL_URL pointed at a
+ * stale DHCP address (wanderlust moved .100 -> .101). That reads to a user
+ * as "there is no news about that" -- a confident wrong answer -- when the
+ * truth is the index was never consulted. An outage now says so plainly,
+ * and is visible on GET / rather than only in a log file nobody tails.
  *
  * Run: same as mock-server.js (see start-prod.sh), just a different
  * filename.
@@ -30,7 +36,11 @@ const PORT = Number(process.argv[2]) || 8789;
 const UPSTREAM_URL = process.env.UPSTREAM_URL || '';
 const UPSTREAM_API_KEY = process.env.UPSTREAM_API_KEY || '';
 const UPSTREAM_MODEL = process.env.UPSTREAM_MODEL || '';
-const RETRIEVAL_URL = process.env.RETRIEVAL_URL || 'http://192.168.1.100:8901/retrieve';
+// wanderlust's LAN address. This is a DHCP lease, not a reservation, and it
+// has already moved once (.100 -> .101, silently breaking retrieval for a
+// month). prod.env should set RETRIEVAL_URL explicitly; this default is only
+// a fallback, and the startup probe below is what makes a wrong value loud.
+const RETRIEVAL_URL = process.env.RETRIEVAL_URL || 'http://192.168.1.101:8901/retrieve';
 const RETRIEVAL_TIMEOUT_MS = Number(process.env.RETRIEVAL_TIMEOUT_MS) || 5000;
 
 const INBOUND_API_KEY = process.env.INBOUND_API_KEY || '';
@@ -80,9 +90,24 @@ function jsonReply(res, status, content) {
 }
 
 /**
- * Calls wanderlust's retrieval endpoint. Returns [] (not a throw) on any
- * failure -- a retrieval outage should degrade the answer's groundedness,
- * not take the whole chatbot down.
+ * Live view of whether the retrieval index is actually answering. Exposed
+ * on GET / so a stale RETRIEVAL_URL is one curl away from obvious, instead
+ * of only showing up as vague chatbot answers.
+ */
+const retrievalHealth = {
+  lastSuccess: null,
+  lastFailure: null,
+  lastError: null,
+  consecutiveFailures: 0
+};
+
+/**
+ * Calls wanderlust's retrieval endpoint. Never throws.
+ *
+ * Returns { results, reachable }. `reachable: false` means we could not
+ * consult the index at all (connection refused, timeout, HTTP error) --
+ * which is NOT the same as the index having nothing to say, and the caller
+ * must not present it that way.
  */
 async function retrieve(query) {
   try {
@@ -96,14 +121,56 @@ async function retrieve(query) {
     });
     clearTimeout(timeout);
     if (!res.ok) {
-      console.error('[rag] retrieval HTTP ' + res.status);
-      return [];
+      noteRetrievalFailure('HTTP ' + res.status);
+      return { results: [], reachable: false };
     }
     const data = await res.json();
-    return Array.isArray(data.results) ? data.results : [];
+    retrievalHealth.lastSuccess = new Date().toISOString();
+    retrievalHealth.consecutiveFailures = 0;
+    return { results: Array.isArray(data.results) ? data.results : [], reachable: true };
   } catch (err) {
-    console.error('[rag] retrieval failed:', err.message);
-    return [];
+    noteRetrievalFailure(err.message);
+    return { results: [], reachable: false };
+  }
+}
+
+function noteRetrievalFailure(message) {
+  retrievalHealth.lastFailure = new Date().toISOString();
+  retrievalHealth.lastError = message;
+  retrievalHealth.consecutiveFailures += 1;
+  // Escalate the wording so a persistent misconfiguration doesn't read like
+  // the same transient blip forever.
+  const n = retrievalHealth.consecutiveFailures;
+  const prefix = n >= 5 ? '[rag] RETRIEVAL DOWN' : '[rag] retrieval failed';
+  console.error(`${prefix} (${n} consecutive) at ${RETRIEVAL_URL}: ${message}`);
+}
+
+/**
+ * One probe at boot. A wrong RETRIEVAL_URL is otherwise invisible until
+ * someone happens to ask the chatbot something and notice the answer is
+ * hollow -- which is exactly how this went unnoticed for a month.
+ */
+function retrievalStatusLine() {
+  if (retrievalHealth.consecutiveFailures > 0) {
+    return (
+      `DOWN (${retrievalHealth.consecutiveFailures} consecutive failures, ` +
+      `last error: ${retrievalHealth.lastError}, ` +
+      `last success: ${retrievalHealth.lastSuccess || 'never'})`
+    );
+  }
+  return `OK (last success: ${retrievalHealth.lastSuccess || 'not yet probed'})`;
+}
+
+async function probeRetrievalAtStartup() {
+  const { reachable } = await retrieve('startup probe');
+  if (reachable) {
+    console.log(`[rag] retrieval OK at ${RETRIEVAL_URL}`);
+  } else {
+    console.error(
+      `[rag] RETRIEVAL UNREACHABLE at ${RETRIEVAL_URL} -- ` +
+      `the chatbot will answer without its news index until this is fixed. ` +
+      `Last error: ${retrievalHealth.lastError}`
+    );
   }
 }
 
@@ -231,6 +298,7 @@ const server = http.createServer((req, res) => {
     res.end(
       `newshelper rag-server running (${UPSTREAM_URL ? 'proxy mode -> ' + UPSTREAM_URL : 'mock mode'}).\n` +
       `Retrieval: ${RETRIEVAL_URL}\n` +
+      `Retrieval status: ${retrievalStatusLine()}\n` +
       'POST to /v1/chat/completions'
     );
     return;
@@ -280,7 +348,20 @@ const server = http.createServer((req, res) => {
         return;
       }
 
-      const results = await retrieve(userText);
+      const { results, reachable } = await retrieve(userText);
+      if (!reachable) {
+        // Say what is actually wrong. Falling through here would produce
+        // "I don't have information on that right now", which a reader
+        // reasonably hears as "there is no such news" -- confidently wrong
+        // about the world when the real problem is on our side.
+        jsonReply(
+          res, 200,
+          "I can't reach NewsHelper's story index at the moment, so I can't answer " +
+          'questions about the news right now. This is a problem on my end, not a ' +
+          'sign that there is nothing to report — please try again shortly.'
+        );
+        return;
+      }
       console.log(`[rag] retrieved ${results.length} chunk(s) for query: ${userText.slice(0, 80)}`);
 
       const upstreamMessages = guardrails.buildUpstreamMessages(clientMessages);
@@ -331,4 +412,5 @@ server.listen(PORT, () => {
   console.log(`Mode: ${UPSTREAM_URL ? 'PROXY -> ' + UPSTREAM_URL : 'MOCK (no UPSTREAM_URL set)'}`);
   console.log(`Retrieval: ${RETRIEVAL_URL}`);
   console.log(`Rules: ${guardrails.rules.systemPrompt ? 'loaded' : 'none'}, ${guardrails.inputPatterns.length} input rule(s), ${guardrails.outputPatterns.length} output rule(s)`);
+  probeRetrievalAtStartup();
 });
