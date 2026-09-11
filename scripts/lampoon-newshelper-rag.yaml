@@ -1,0 +1,44 @@
+# Reference copy for lampoon:~/newshelper-retrieval/config/rag.yaml (ADR-003
+# Decision 7, revised 2026-09-11). Deployed by
+# `scripts/sync_rag_to_lampoon.sh --code`. Same shape as config/rag.yaml;
+# only the lines that differ on lampoon are commented.
+#
+# lampoon only runs rag_serve (retrieval), never ingestion -- the index is
+# built on wanderlust and rsynced here -- so chunking/retention are unused
+# but still required by rag_config's validation.
+
+chunking:
+  chunk_size_words: 600
+  overlap_words: 80
+
+retention:
+  current_window_days: 90
+
+retrieval:
+  top_k: 4
+  current_weight: 0.7
+
+embedding:
+  # Must be the same model the index was built with, or similarity is
+  # meaningless. Olla load-balances it across the xmas/european GPU nodes.
+  model: nomic-embed-text
+  host: http://localhost:40114/olla/ollama
+  timeout_seconds: 30
+
+chat:
+  model: llama3.1:8b
+  host: http://localhost:40114/olla/ollama
+  timeout_seconds: 60
+
+persona:
+  cadence_days: 7
+
+store:
+  # Relative to the service's WorkingDirectory (~/newshelper-retrieval).
+  path: data/rag_store
+
+serve:
+  # The only caller is chat-proxy-newshelper on this same machine, so bind
+  # to loopback -- retrieval is no longer reachable from the LAN at all.
+  host: 127.0.0.1
+  port: 8901

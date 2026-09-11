@@ -36,11 +36,11 @@ const PORT = Number(process.argv[2]) || 8789;
 const UPSTREAM_URL = process.env.UPSTREAM_URL || '';
 const UPSTREAM_API_KEY = process.env.UPSTREAM_API_KEY || '';
 const UPSTREAM_MODEL = process.env.UPSTREAM_MODEL || '';
-// wanderlust's LAN address. This is a DHCP lease, not a reservation, and it
-// has already moved once (.100 -> .101, silently breaking retrieval for a
-// month). prod.env should set RETRIEVAL_URL explicitly; this default is only
-// a fallback, and the startup probe below is what makes a wrong value loud.
-const RETRIEVAL_URL = process.env.RETRIEVAL_URL || 'http://192.168.1.101:8901/retrieve';
+// rag_serve runs on lampoon itself (newshelper-rag-serve.service), next to
+// this proxy. It used to run on wanderlust at a DHCP-leased LAN IP, which
+// moved twice (.100 -> .101 -> .100) and silently broke retrieval each time.
+// The startup probe below is what makes a wrong value loud.
+const RETRIEVAL_URL = process.env.RETRIEVAL_URL || 'http://localhost:8901/retrieve';
 const RETRIEVAL_TIMEOUT_MS = Number(process.env.RETRIEVAL_TIMEOUT_MS) || 5000;
 
 const INBOUND_API_KEY = process.env.INBOUND_API_KEY || '';

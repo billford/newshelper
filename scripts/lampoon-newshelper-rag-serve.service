@@ -1,0 +1,22 @@
+# Reference copy for lampoon:/etc/systemd/system/newshelper-rag-serve.service
+# (ADR-003 Decision 7, revised 2026-09-11). Serves rag_retrieve over HTTP to
+# lampoon's own chatbot proxy (chat-proxy-newshelper) on localhost only.
+#
+# The LanceDB index is built by the daily build on wanderlust and rsynced
+# into ~/newshelper-retrieval/data/rag_store (scripts/sync_rag_to_lampoon.sh);
+# query embeddings go through Olla to the xmas/european GPU nodes.
+[Unit]
+Description=newshelper retrieval service (rag_serve, ADR-003)
+After=network-online.target olla.service
+Wants=network-online.target
+
+[Service]
+User=billfordx
+WorkingDirectory=/home/billfordx/newshelper-retrieval
+Environment=PYTHONPATH=/home/billfordx/newshelper-retrieval/src
+ExecStart=/home/billfordx/newshelper-retrieval/.venv/bin/python -m newshelper.rag_serve
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

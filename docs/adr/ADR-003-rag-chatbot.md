@@ -160,6 +160,27 @@ results into the model prompt as `<source>` blocks with an explicit
 instruction to treat them as data, never instructions — this is the
 prompt-injection guardrail §5 of the original spec required.
 
+**Revised 2026-09-11: retrieval moved onto lampoon.** Serving retrieval
+from wanderlust (a laptop) at a DHCP-leased LAN IP broke twice: the lease
+moved .100 -> .101 and later back, and each time the proxy's hardcoded
+`RETRIEVAL_URL` went stale. Retrieval now runs next to the proxy on lampoon,
+the cluster frontend:
+
+- `rag_serve.py` runs as `newshelper-rag-serve.service` from
+  `~/newshelper-retrieval` (reference unit:
+  `scripts/lampoon-newshelper-rag-serve.service`, config:
+  `scripts/lampoon-newshelper-rag.yaml`), bound to `127.0.0.1:8901`. The
+  proxy calls `http://localhost:8901/retrieve`, so retrieval is no longer
+  reachable from the LAN at all.
+- Query embeddings go through Olla (`localhost:40114/olla/ollama`) to the
+  xmas/european GPU nodes, using the same `nomic-embed-text` build
+  (digest `0a109f422b47`) the index was ingested with.
+- The index is still built on wanderlust by the daily build, which then
+  runs `scripts/sync_rag_to_lampoon.sh` to copy it over. A failed sync
+  notifies but doesn't block the site publish; the chatbot keeps serving
+  the previous copy. wanderlust's `com.billford.newshelper.rag-serve`
+  launchd job and its plist are removed.
+
 **One Funnel port per bot, not path-based routing under one port.** The
 original ask was to avoid spending a second public port on a second bot.
 `tailscale serve --set-path` looked like the answer (route `/newshelper`

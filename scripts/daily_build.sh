@@ -34,6 +34,16 @@ if ! "${VENV_PYTHON}" -m newshelper.build >> "${LOG_FILE}" 2>&1; then
 fi
 log "build succeeded"
 
+# The chatbot's retrieval service runs on lampoon, reading a copy of the
+# index this build just updated. A failed sync leaves the chatbot on
+# yesterday's news, which isn't worth holding back the site publish for --
+# so notify and carry on.
+if bash "${REPO_ROOT}/scripts/sync_rag_to_lampoon.sh" >> "${LOG_FILE}" 2>&1; then
+  log "rag index synced to lampoon"
+else
+  notify_failure "rag index sync"
+fi
+
 if ! bash "${REPO_ROOT}/scripts/publish.sh" >> "${LOG_FILE}" 2>&1; then
   notify_failure "publish"
   exit 1
