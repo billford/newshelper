@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 150" role="img" aria-labelledby="nh-title nh-desc">
+  <title id="nh-title">NewsHelper</title>
+  <desc id="nh-desc">NewsHelper wordmark: the headline, actually explained</desc>
+  <rect x="4" y="14" width="632" height="2" fill="#262420"/>
+  <rect x="4" y="20" width="632" height="0.75" fill="#262420"/>
+  <text x="320" y="88" text-anchor="middle" font-family="Lora, 'Source Serif 4', Georgia, serif" font-size="58" font-weight="700" fill="#262420">News<tspan fill="#8A6A4A">Helper</tspan></text>
+  <text x="320" y="118" text-anchor="middle" font-family="Lora, Georgia, serif" font-style="italic" font-size="16" letter-spacing="1" fill="#7A7568">&#38; the rest of the story</text>
+  <rect x="4" y="128" width="632" height="0.75" fill="#262420"/>
+  <rect x="4" y="134" width="632" height="2" fill="#262420"/>
+</svg>
