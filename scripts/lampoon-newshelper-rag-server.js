@@ -284,6 +284,26 @@ async function callUpstream(messages) {
   throw new Error('upstream response had no reply');
 }
 
+/**
+ * Returns a client-facing reason when "messages" is not the
+ * [{ role: string, content: string }, ...] shape the widget sends, or null
+ * when it is. Anyone holding the public key can post anything here, and a
+ * bad shape used to throw inside the async request callback, which is an
+ * unhandled rejection that exits the whole process for every visitor.
+ * Checked before retrieval so junk input can't count as an index outage.
+ */
+function messagesShapeError(messages) {
+  if (!Array.isArray(messages)) return '"messages" must be an array';
+  for (const m of messages) {
+    if (m === null || typeof m !== 'object' || Array.isArray(m)) {
+      return 'each message must be an object';
+    }
+    if (typeof m.role !== 'string') return 'each message must have a string "role"';
+    if (typeof m.content !== 'string') return 'each message must have a string "content"';
+  }
+  return null;
+}
+
 const server = http.createServer((req, res) => {
   setCors(req, res);
 
@@ -331,49 +351,59 @@ const server = http.createServer((req, res) => {
       let clientMessages = [];
       try {
         const parsed = JSON.parse(body || '{}');
-        clientMessages = parsed.messages || [];
+        if (parsed.messages !== undefined) {
+          const shapeError = messagesShapeError(parsed.messages);
+          if (shapeError) {
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: shapeError }));
+            return;
+          }
+          clientMessages = parsed.messages;
+        }
       } catch (e) {
         res.writeHead(400, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: 'invalid JSON body' }));
         return;
       }
 
-      const lastUser = [...clientMessages].reverse().find((m) => m.role === 'user');
-      const userText = lastUser ? lastUser.content : '';
-
-      const inputCheck = guardrails.checkInput(userText);
-      if (inputCheck.blocked) {
-        console.log(`[guardrails] blocked input (rule: ${inputCheck.rule})`);
-        jsonReply(res, 200, inputCheck.response);
-        return;
-      }
-
-      const { results, reachable } = await retrieve(userText);
-      if (!reachable) {
-        // Say what is actually wrong. Falling through here would produce
-        // "I don't have information on that right now", which a reader
-        // reasonably hears as "there is no such news" -- confidently wrong
-        // about the world when the real problem is on our side.
-        jsonReply(
-          res, 200,
-          "I can't reach NewsHelper's story index at the moment, so I can't answer " +
-          'questions about the news right now. This is a problem on my end, not a ' +
-          'sign that there is nothing to report — please try again shortly.'
-        );
-        return;
-      }
-      console.log(`[rag] retrieved ${results.length} chunk(s) for query: ${userText.slice(0, 80)}`);
-
-      const upstreamMessages = guardrails.buildUpstreamMessages(clientMessages);
-      const contextMessage = buildContextMessage(results);
-      // Insert right after the (authoritative) system prompt, before the
-      // conversation history, so it reads as background material the
-      // assistant has, not something the user said.
-      const finalMessages = contextMessage
-        ? [upstreamMessages[0], contextMessage, ...upstreamMessages.slice(1)]
-        : upstreamMessages;
-
+      // Validation above covers the known bad shapes. This try is the backstop:
+      // anything else that throws fails one request, not the whole process.
       try {
+        const lastUser = [...clientMessages].reverse().find((m) => m.role === 'user');
+        const userText = lastUser ? lastUser.content : '';
+
+        const inputCheck = guardrails.checkInput(userText);
+        if (inputCheck.blocked) {
+          console.log(`[guardrails] blocked input (rule: ${inputCheck.rule})`);
+          jsonReply(res, 200, inputCheck.response);
+          return;
+        }
+
+        const { results, reachable } = await retrieve(userText);
+        if (!reachable) {
+          // Say what is actually wrong. Falling through here would produce
+          // "I don't have information on that right now", which a reader
+          // reasonably hears as "there is no such news" -- confidently wrong
+          // about the world when the real problem is on our side.
+          jsonReply(
+            res, 200,
+            "I can't reach NewsHelper's story index at the moment, so I can't answer " +
+            'questions about the news right now. This is a problem on my end, not a ' +
+            'sign that there is nothing to report — please try again shortly.'
+          );
+          return;
+        }
+        console.log(`[rag] retrieved ${results.length} chunk(s) for query: ${userText.slice(0, 80)}`);
+
+        const upstreamMessages = guardrails.buildUpstreamMessages(clientMessages);
+        const contextMessage = buildContextMessage(results);
+        // Insert right after the (authoritative) system prompt, before the
+        // conversation history, so it reads as background material the
+        // assistant has, not something the user said.
+        const finalMessages = contextMessage
+          ? [upstreamMessages[0], contextMessage, ...upstreamMessages.slice(1)]
+          : upstreamMessages;
+
         const rawReply = UPSTREAM_URL
           ? await callUpstream(finalMessages)
           : '(mock reply) RAG context retrieved: ' + results.length + ' source(s).';
@@ -395,7 +425,7 @@ const server = http.createServer((req, res) => {
         const cleaned = stripModelGeneratedSources(text);
         jsonReply(res, 200, cleaned + citationsFooter(results));
       } catch (err) {
-        console.error('[server] upstream error:', err.message);
+        console.error('[server] request error:', err && err.message);
         res.writeHead(502, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: 'upstream call failed' }));
       }
