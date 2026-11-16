@@ -32,6 +32,11 @@ class RetrievedChunk:
     text: str
     collection: str
     published_at: str
+    # Raw vector distance to the query (lower = closer), before any recency
+    # re-ranking. Exposed so the chat proxy can tell "a story on this exact
+    # subject exists but doesn't answer the question" apart from "nothing
+    # on this at all" without asking the model to make that call.
+    distance: float
 
 
 def recency_weight(published_at: str, now: datetime, window_days: int) -> float:
@@ -80,6 +85,7 @@ def _to_chunks(rows: list[dict], collection: str) -> list[RetrievedChunk]:
         RetrievedChunk(
             title=r["title"], url=r["url"], text=r["text"],
             collection=collection, published_at=r["published_at"],
+            distance=float(r["_distance"]),
         )
         for r in rows
     ]

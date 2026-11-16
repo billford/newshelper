@@ -82,6 +82,7 @@ def test_post_retrieve_returns_results(running_server):
     assert len(body["results"]) == 1
     assert body["results"][0]["title"] == "Transit story"
     assert body["results"][0]["url"] == "https://example.com/transit"
+    assert isinstance(body["results"][0]["distance"], float)
 
 
 def test_post_retrieve_empty_query_returns_empty_results(running_server):

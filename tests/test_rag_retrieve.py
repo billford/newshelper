@@ -3,6 +3,8 @@ current/reference split, per ADR-003's testing requirements."""
 
 from datetime import datetime, timezone
 
+import pytest
+
 from newshelper.rag_config import (
     ChatConfig,
     ChunkingConfig,
@@ -157,6 +159,7 @@ def test_retrieve_returns_citation_fields(tmp_path):
     assert results[0].url == "https://example.com/c1"
     assert results[0].published_at == "2026-07-20"
     assert results[0].text == "text c1"
+    assert results[0].distance == pytest.approx(0.0, abs=1e-6)
 
 
 def test_retrieve_deduplicates_the_same_story_reindexed_by_two_builds(tmp_path):

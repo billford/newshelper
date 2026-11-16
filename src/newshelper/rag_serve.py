@@ -95,6 +95,7 @@ def make_handler(store: VectorStore, embed_client: EmbedClientProtocol, config: 
                             "text": r.text,
                             "collection": r.collection,
                             "published_at": r.published_at,
+                            "distance": r.distance,
                         }
                         for r in results
                     ]

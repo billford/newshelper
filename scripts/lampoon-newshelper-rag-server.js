@@ -231,6 +231,48 @@ function enforceNoInfoDisclaimer(reply) {
   return match ? { disclaimed: true, text: match[0] } : { disclaimed: false, text: reply };
 }
 
+// The bare disclaimer is wrong-sounding when the digest DID run a story on
+// that exact subject but the story just doesn't answer the question asked
+// ("What are South Africa's gun laws?" on a day the lead story is a South
+// African mass shooting -- the reader sees the story on the page and hears
+// "nothing on that today"). Asking the model to write a "partial" reply
+// instead was tried (2026-11-16) and failed badly on the local model: it
+// invented a death toll and pasted the prompt's example into an unrelated
+// answer. So the model's job stays a strict yes/no, and this reply is built
+// in code from retrieved titles verbatim -- nothing in it can be invented.
+//
+// "Same subject" = a current-collection chunk within RELATED_MAX_DISTANCE of
+// the query. 0.65 was set by inspection against the live index: questions
+// about a story that was actually covered scored 0.43-0.65, off-topic ones
+// (Brazil coffee, Japan's gun laws, the World Series, Paris weather) 0.75+.
+// Like ADR-002's similarity threshold, a tuned value, not a validated one.
+// Results without a numeric distance (an older rag_serve) never qualify, so
+// a version mismatch degrades to the plain disclaimer, not to a wrong one.
+const RELATED_MAX_DISTANCE = Number(process.env.RELATED_MAX_DISTANCE) || 0.65;
+const RELATED_MAX_STORIES = 2;
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+function relatedStoryReply(results, now = new Date()) {
+  const related = results
+    .filter((r) => r.collection === 'current' && typeof r.distance === 'number' &&
+      r.distance <= RELATED_MAX_DISTANCE && r.title)
+    .slice(0, RELATED_MAX_STORIES);
+  if (related.length === 0) return null;
+
+  const today = now.toISOString().slice(0, 10);
+  const when = (r) => {
+    if (r.published_at === today) return 'today';
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(r.published_at || '');
+    return m ? `${MONTHS[Number(m[2]) - 1]} ${Number(m[3])}` : null;
+  };
+  const describe = (r) => (when(r) ? `"${r.title}" (${when(r)})` : `"${r.title}"`);
+  const stories = related.map(describe).join(' and ');
+  const noun = related.length === 1 ? 'a related story' : 'related stories';
+  const pronoun = related.length === 1 ? 'it doesn\'t' : 'they don\'t';
+  return `NewsHelper's digest has ${noun}: ${stories}. But ${pronoun} cover the ` +
+    'specific thing you asked about, so I can\'t answer that without guessing.';
+}
+
 // Real test: despite being told to cite inline as [1]/[2] and never write
 // its own citation section, the model still sometimes generates a trailing
 // "Sources:" heading of its own -- likely a habit picked up from RAG
@@ -272,7 +314,13 @@ async function callUpstream(messages) {
   const res = await fetch(UPSTREAM_URL, {
     method: 'POST',
     headers,
-    body: JSON.stringify({ model: UPSTREAM_MODEL || 'default', messages, stream: false })
+    // temperature 0: grounded Q&A wants the single most likely reading of the
+    // sources, not variety. With no temperature set, Ollama's default (0.8)
+    // made the same question refuse on one try and editorialize past the
+    // sources on the next (2026-11-16).
+    body: JSON.stringify({
+      model: UPSTREAM_MODEL || 'default', messages, stream: false, temperature: 0
+    })
   });
 
   if (!res.ok) throw new Error('upstream HTTP ' + res.status);
@@ -417,8 +465,9 @@ const server = http.createServer((req, res) => {
 
         const { disclaimed, text } = enforceNoInfoDisclaimer(rawReply);
         if (disclaimed) {
-          console.log('[rag] model claimed no info -- suppressing citations, discarding anything trailing the disclaimer');
-          jsonReply(res, 200, text);
+          const related = relatedStoryReply(results);
+          console.log(`[rag] model claimed no info -- discarding anything trailing the disclaimer${related ? ', naming related story' : ''}`);
+          jsonReply(res, 200, related || text);
           return;
         }
 
